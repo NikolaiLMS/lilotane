@@ -18,6 +18,7 @@ struct FactFrame {
         f.sig = sig.substitute(s);
         for (const auto& pre : preconditions) f.preconditions.insert(pre.substitute(s));
         for (const auto& eff : effects) f.effects.insert(eff.substitute(s));
+        f.offsetEffects.resize(offsetEffects.size());
         for (size_t i = 0; i < offsetEffects.size(); i++) 
             for (const auto& eff : offsetEffects[i]) 
                 f.offsetEffects[i].insert(eff.substitute(s));
