@@ -47,6 +47,8 @@ void FactAnalysis::computeFactFrames() {
         return newSig;
     };
 
+    findAffectedSignatures(orderedOpIds);
+
     // Repeatedly extend the operations' fact frames until convergence of fact changes
     bool change = true;
     while (change) {
@@ -58,6 +60,7 @@ void FactAnalysis::computeFactFrames() {
             //Log::d("FF %i : %s\n", i, TOSTR(opId));
             
             if (_htn.isAction(opId) || _htn.isActionRepetition(opId)) {
+                //Log::d("isAction Log message: FF %i : %s\n", i, TOSTR(opId));
 
                 // Action: Setting fact frame is trivial
                 int aId = opId;
@@ -66,11 +69,14 @@ void FactAnalysis::computeFactFrames() {
                 if (_fact_frames[opId].sig != action.getSignature()) {
                     _fact_frames[opId].sig = action.getSignature();
                     _fact_frames[opId].preconditions = action.getPreconditions();
-                    _fact_frames[opId].effects = action.getEffects();
-                    change = true;
+                    if (preconditionsPossible(action.getPreconditions())) {
+                        _fact_frames[opId].effects = action.getEffects();
+                        change = true;
+                    }
                 } // else: fact frame already set
 
             } else if (_htn.isReductionPrimitivizable(opId)) {
+                //Log::d("isReductionPrimitivizable Log message: FF %i : %s\n", i, TOSTR(opId));
 
                 // Primitivization of a reduction, i.e., essentially just an action
                 int aId = _htn.getReductionPrimitivizationName(opId);
@@ -78,51 +84,55 @@ void FactAnalysis::computeFactFrames() {
                 if (_fact_frames[opId].sig != action.getSignature()) {
                     _fact_frames[opId].sig = action.getSignature();
                     _fact_frames[opId].preconditions = action.getPreconditions();
-                    _fact_frames[opId].effects = action.getEffects();
-                    change = true;
+                    if (preconditionsPossible(action.getPreconditions())) {
+                        _fact_frames[opId].effects = action.getEffects();
+                        change = true;
+                    }
                 } // else: fact frame already set
 
             } else if (_htn.isReduction(opId)) {
+                //Log::d("isReduction Log message: FF %i : %s\n", i, TOSTR(opId));
 
                 // Reduction
                 const auto& reduction = _htn.getAnonymousReduction(opId);
                 FlatHashSet<int> argSet(reduction.getArguments().begin(), reduction.getArguments().end());
-                
+
                 // Set up (new?) fact frame with the reduction's preconditions
                 FactFrame& result = _fact_frames[opId];
                 result.sig = reduction.getSignature();
                 result.preconditions.insert(reduction.getPreconditions().begin(), 
                                             reduction.getPreconditions().end());
-                result.offsetEffects.resize(reduction.getSubtasks().size());
-                size_t priorEffs = result.effects.size();
+                if (preconditionsPossible(reduction.getPreconditions())) {
+                    result.offsetEffects.resize(reduction.getSubtasks().size());
+                    size_t priorEffs = result.effects.size();
 
-                // For each subtask of the reduction
-                for (size_t i = 0; i < reduction.getSubtasks().size(); i++) {
+                    // For each subtask of the reduction
+                    for (size_t i = 0; i < reduction.getSubtasks().size(); i++) {
 
-                    // Find all possible child operations for this subtask
-                    std::vector<USignature> children;
-                    _traversal.getPossibleChildren(reduction.getSubtasks(), i, children);
-                    
-                    // For each such child operation
-                    for (const auto& child : children) {
+                        // Find all possible child operations for this subtask
+                        std::vector<USignature> children;
+                        _traversal.getPossibleChildren(reduction.getSubtasks(), i, children);
+                        
+                        // For each such child operation
+                        for (const auto& child : children) {
 
-                        // Fact frame for this child already present?
-                        if (_fact_frames.count(child._name_id)) {
-                            
-                            // Retrieve child's fact frame
-                            FactFrame childFrame = getFactFrame(child);
-                            for (auto& eff : childFrame.effects) eff = normalizeSignature(eff, argSet);
+                            // Fact frame for this child already present?
+                            if (_fact_frames.count(child._name_id)) {
+                                
+                                // Retrieve child's fact frame
+                                FactFrame childFrame = getFactFrame(child);
+                                for (auto& eff : childFrame.effects) eff = normalizeSignature(eff, argSet);
 
-                            // Add all of the child's effects to the parent's effects
-                            Sig::unite(childFrame.effects, result.effects);
-                            Sig::unite(childFrame.effects, result.offsetEffects[i]);
+                                // Add all of the child's effects to the parent's effects
+                                Sig::unite(childFrame.effects, result.effects);
+                                Sig::unite(childFrame.effects, result.offsetEffects[i]);
+                            }
                         }
                     }
-                }
-
-                // Check if the fact frame has been extended non-trivially
-                if (result.effects.size() > priorEffs) {
-                    change = true;
+                    // Check if the fact frame has been extended non-trivially
+                    if (result.effects.size() > priorEffs) {
+                        change = true;
+                    }
                 }
 
             } else {
@@ -293,4 +303,51 @@ std::vector<FlatHashSet<int>> FactAnalysis::getReducedArgumentDomains(const HtnO
     }
 
     return domainPerVariable;
+}
+
+void FactAnalysis::findAffectedSignatures(std::vector<int> orderedOpIds) {
+    // find predicate signatures that are affected by operations (and thus find rigid predicates)
+    for (int i = orderedOpIds.size()-1; i >= 0; i--) {
+        int opId = orderedOpIds[i];
+        Log::d("FF %i : %s\n", i, TOSTR(opId));
+        
+        if (_htn.isAction(opId) || _htn.isActionRepetition(opId)) {
+            // Action: Setting fact frame is trivial
+            int aId = opId;
+            if (_htn.isActionRepetition(opId)) aId = _htn.getActionNameFromRepetition(opId);
+            Action action = _htn.getAnonymousAction(aId);
+            for (auto effect : action.getEffects()) {
+                Log::d("Found affected signature: %s\n", TOSTR(effect));
+                _affected_predicate[effect] = true;
+            }
+
+        } else if (_htn.isReductionPrimitivizable(opId)) {
+
+            // Primitivization of a reduction, i.e., essentially just an action
+            int aId = _htn.getReductionPrimitivizationName(opId);
+            Action action = _htn.getAnonymousAction(aId);
+            for (auto effect : action.getEffects()) {
+                Log::d("Found affected signature: %s\n", TOSTR(effect));
+                _affected_predicate[effect] = true;
+            }
+
+        } //else if (_htn.isReduction(opId)) {
+            // dont do anything since reduction doesn't have it's own "direct" effects (?)
+    }
+}
+
+bool FactAnalysis::preconditionsPossible(SigSet preconditions) {
+    bool reachable = true;
+    for (auto precondition: preconditions) {
+        if (!_affected_predicate[precondition]) {
+            _rigid_predicates++;
+            if (_htn.getInitState().count(precondition.getUnsigned())) {
+                reachable = false;
+                _unreachable_preconditions++;
+                break;
+            }
+        }
+    }
+
+    return reachable;
 }

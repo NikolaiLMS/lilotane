@@ -965,4 +965,6 @@ void Planner::printStatistics() {
     Log::i("# retroactive prunings: %i\n", _pruning.getNumRetroactivePunings());
     Log::i("# retroactively pruned operations: %i\n", _pruning.getNumRetroactivelyPrunedOps());
     Log::i("# dominated operations: %i\n", _domination_resolver.getNumDominatedOps());
+    Log::i("# unreachable preconditions found: %i\n", _analysis.getUnreachablePreconditions());
+    Log::i("# times rigid predicates were matched: %i\n", _analysis.getRigidPredicates());
 }
