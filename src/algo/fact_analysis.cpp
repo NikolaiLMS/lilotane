@@ -39,11 +39,13 @@ void FactAnalysis::computeFactFrames() {
     Log::d("FF all: { %s }\n", TOSTR(orderedOpIds));
 
     auto normalizeSignature = [&](const Signature& sig, FlatHashSet<int> argSet) {
+        Log::d("normalizing signature: %s\n", TOSTR(sig));
         Signature newSig = sig;
         for (size_t j = 0; j < newSig._usig._args.size(); j++) {
             int& arg = newSig._usig._args[j];
             if (!argSet.count(arg)) arg = _htn.nameId("??_");
         }
+        Log::d("normalized signature: %s\n", TOSTR(newSig));
         return newSig;
     };
 
@@ -144,7 +146,7 @@ void FactAnalysis::computeFactFrames() {
     // In a next step, use the converged fact changes to infer preconditions
     for (int i = orderedOpIds.size()-1; i >= 0; i--) {
         int opId = orderedOpIds[i];
-        //Log::d("FF %i : %s\n", i, TOSTR(opId));
+        Log::d("FF %i : %s\n", i, TOSTR(opId));
         
         if (_htn.isReduction(opId) && !_htn.isReductionPrimitivizable(opId)) {
 
@@ -157,6 +159,7 @@ void FactAnalysis::computeFactFrames() {
 
             // For each subtask of the reduction
             for (size_t i = 0; i < reduction.getSubtasks().size(); i++) {    
+                Log::d("FF %i : %s get Subtasks\n", i, TOSTR(opId));
 
                 // Find all possible child operations for this subtask
                 std::vector<USignature> children;
@@ -166,7 +169,8 @@ void FactAnalysis::computeFactFrames() {
                 FactFrame offsetFrame;
                 bool firstChild = true;
                 for (const auto& child : children) {
-   
+                   Log::d("FF %i : %s get Children\n", i, TOSTR(opId));
+
                     // Retrieve child's fact frame
                     FactFrame childFrame = _fact_frames.at(child._name_id);
                     // Convert fact frame to local args of child
@@ -177,6 +181,7 @@ void FactAnalysis::computeFactFrames() {
                     if (firstChild) {
                         // Add all preconditions of child that are not yet part of the parent's effects
                         // at the previous offset
+                        Log::d("FF %i : %s firstChild\n", i, TOSTR(opId));
                         for (const auto& pre : childFrame.preconditions) {
                             bool isNew = true;
                             // Normalize precondition
@@ -189,9 +194,12 @@ void FactAnalysis::computeFactFrames() {
                             if (isNew) offsetFrame.preconditions.insert(pre);
                         }
                         firstChild = false;
+                        Log::d("FF %i : %s firstChild done\n", i, TOSTR(opId));
                     } else {
+                        Log::d("FF %i : %s Else\n", i, TOSTR(opId));
                         // Intersect preconditions with previous childrens' preconditions
                         Sig::intersect(childFrame.preconditions, offsetFrame.preconditions);
+                        Log::d("FF %i : %s Else done\n", i, TOSTR(opId));
                     }
                 }
 
@@ -340,12 +348,16 @@ bool FactAnalysis::preconditionsPossible(SigSet preconditions) {
     bool reachable = true;
     for (auto precondition: preconditions) {
         if (!_affected_predicate[precondition]) {
+            Log::d("Matched rigid predicate: %s\n", TOSTR(precondition));
             _rigid_predicates++;
-            if (_htn.getInitState().count(precondition.getUnsigned())) {
+            Log::d("Checking initState: %s\n", TOSTR(_htn.getInitState()));
+            if (!_htn.getInitState().count(precondition.getUnsigned())) {
+                Log::d("Predicate not found in initState\n");
                 reachable = false;
                 _unreachable_preconditions++;
                 break;
             }
+            Log::d("Found predicate in initState\n");
         }
     }
 
