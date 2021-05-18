@@ -335,8 +335,21 @@ void Planner::createNextPositionFromLeft(Position& left) {
         for (const auto& aSig : *set) {
 
             bool repeatedAction = isAction && _htn.isActionRepetition(aSig._name_id);
+            SigSet pfc_new = _analysis.getPossibleFactChanges(aSig);
+            SigSet pfc_old = _analysis.getPossibleFactChangesOld(aSig);
 
-            for (const Signature& fact : _analysis.getPossibleFactChanges(aSig)) {
+            for (const auto& fact : pfc_new) {
+                if (!pfc_old.count(fact)) {
+                    Log::d("Found new fact that isn't in the old pfcs: %s\n", TOSTR(fact));
+                }
+            }
+            for (const auto& fact : pfc_old) {
+                if (!pfc_new.count(fact)) {
+                    Log::d("Found old fact that isn't in the new pfcs: %s\n", TOSTR(fact));
+                }
+            }
+            Log::d("PFC new size: %i, old size: %i\n", pfc_new.size(), pfc_old.size());
+            for (const Signature& fact : pfc_new) {
                 if (isAction && !addEffect(
                         repeatedAction ? aSig.renamed(_htn.getActionNameFromRepetition(aSig._name_id)) : aSig, 
                         fact, 
@@ -965,6 +978,4 @@ void Planner::printStatistics() {
     Log::i("# retroactive prunings: %i\n", _pruning.getNumRetroactivePunings());
     Log::i("# retroactively pruned operations: %i\n", _pruning.getNumRetroactivelyPrunedOps());
     Log::i("# dominated operations: %i\n", _domination_resolver.getNumDominatedOps());
-    Log::i("# unreachable preconditions found: %i\n", _analysis.getUnreachablePreconditions());
-    Log::i("# times rigid predicates were matched: %i\n", _analysis.getRigidPredicates());
 }

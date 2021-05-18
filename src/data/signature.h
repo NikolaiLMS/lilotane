@@ -135,6 +135,17 @@ struct SigVecHasher {
 typedef FlatHashSet<Signature, SignatureHasher> SigSet;
 typedef FlatHashSet<USignature, USignatureHasher> USigSet;
 
+struct SigSetHasher {
+    SignatureHasher _sig_hasher;
+    inline std::size_t operator()(const SigSet& s) const {
+        size_t hash = s.size();
+        for (const Signature& sig : s) hash_combine(hash, _sig_hasher(sig));
+        return hash;
+    }
+};
+
+
+
 namespace Sig {
     const static USignature NONE_SIG = USignature(-1, std::vector<int>());
     const static SigSet EMPTY_SIG_SET;

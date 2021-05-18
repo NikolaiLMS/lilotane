@@ -7,7 +7,7 @@
 #include "data/signature.h"
 
 struct FactFrame {
-
+    NodeHashMap<SigSet, SigSet, SigSetHasher> conditionalEffects;
     USignature sig;
     SigSet preconditions;
     SigSet effects;
@@ -22,6 +22,13 @@ struct FactFrame {
         for (size_t i = 0; i < offsetEffects.size(); i++) 
             for (const auto& eff : offsetEffects[i]) 
                 f.offsetEffects[i].insert(eff.substitute(s));
+        for (auto& conditionalEffect : conditionalEffects) {
+            SigSet new_prereqs;
+            SigSet new_effects;
+            for (const auto& prereq : conditionalEffect.first) new_prereqs.insert(prereq.substitute(s));
+            for (const auto& effect : conditionalEffect.second) new_effects.insert(effect.substitute(s));
+            f.conditionalEffects[new_prereqs] = new_effects;
+        }
         return f;
     }
 };

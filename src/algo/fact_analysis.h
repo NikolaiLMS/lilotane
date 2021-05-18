@@ -11,8 +11,7 @@ typedef std::function<bool(const USignature&, bool)> StateEvaluator;
 class FactAnalysis {
 
 private:
-    int _unreachable_preconditions = 0;
-    int _rigid_predicates = 0;
+    int _rigid_predicates_matched = 0;
     HtnInstance& _htn;
     NetworkTraversal _traversal;
 
@@ -32,8 +31,8 @@ private:
 
     NodeHashMap<int, FactFrame> _fact_frames;
 
-    // Maps a precondition signature to False if it isn't effected by any operation (i.e., is a 'rigid predicate')
-    NodeHashMap<Signature, bool, SignatureHasher> _affected_predicate;
+    // Set of all signature names affected by some operations effects
+    FlatHashSet<int> _fluent_predicates;
 
 public:
     
@@ -41,12 +40,8 @@ public:
         resetReachability();
     }
 
-    int getUnreachablePreconditions() {
-        return _unreachable_preconditions;
-    }
-
     int getRigidPredicates() {
-        return _rigid_predicates;
+        return _rigid_predicates_matched;
     }
 
     void resetReachability() {
@@ -106,6 +101,7 @@ public:
     }
 
     SigSet getPossibleFactChanges(const USignature& sig);
+    SigSet getPossibleFactChangesOld(const USignature& sig);
 
     SigSet inferPreconditions(const USignature& op) {
         return getFactFrame(op).preconditions;
@@ -113,9 +109,7 @@ public:
 
     std::vector<FlatHashSet<int>> getReducedArgumentDomains(const HtnOp& op);
 
-    void findAffectedSignatures(std::vector<int> orderedOpIds);
-
-    bool preconditionsPossible(SigSet preconditions);
+    void findFluentPredicates(const std::vector<int>& orderedOpIds);
 
     inline bool isPseudoOrGroundFactReachable(const USignature& sig, bool negated) {
         if (!_htn.isFullyGround(sig)) return true;
