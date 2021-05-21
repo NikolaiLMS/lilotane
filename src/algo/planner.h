@@ -16,6 +16,7 @@
 #include "algo/domination_resolver.h"
 #include "algo/plan_writer.h"
 #include "sat/encoding.h"
+#include "optional"
 
 typedef std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Plan;
 
