@@ -139,7 +139,7 @@ struct SigSetHasher {
     SignatureHasher _sig_hasher;
     inline std::size_t operator()(const SigSet& s) const {
         size_t hash = s.size();
-        for (const Signature& sig : s) hash_combine(hash, _sig_hasher(sig));
+        for (const Signature& sig : s) hash_combine_commutative(hash, _sig_hasher(sig));
         return hash;
     }
 };
