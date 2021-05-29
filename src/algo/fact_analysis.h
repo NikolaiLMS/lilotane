@@ -33,7 +33,7 @@ private:
 
     // Set of all signature names affected by some operations effects
     FlatHashSet<int> _fluent_predicates;
-
+    
 public:
     
     FactAnalysis(HtnInstance& htn) : _htn(htn), _traversal(htn), _init_state(_htn.getInitState()) {

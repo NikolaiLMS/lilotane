@@ -9,6 +9,7 @@
 #include "util/hashmap.h"
 #include "util/hash.h"
 #include "substitution.h"
+#include <string>
 
 struct TypeConstraint {
     int qconstant;
@@ -144,7 +145,17 @@ struct SigSetHasher {
     }
 };
 
-
+struct SigSetEquals {
+    bool operator()(const SigSet& a, const SigSet& b) const {
+        if (a.size() != b.size()) return false;
+        for (const auto& sig : a) {
+            if (!b.count(sig)) {
+                return false;
+            }
+        }
+        return true;
+    }
+};
 
 namespace Sig {
     const static USignature NONE_SIG = USignature(-1, std::vector<int>());

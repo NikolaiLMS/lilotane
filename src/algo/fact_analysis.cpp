@@ -60,8 +60,6 @@ void FactAnalysis::computeFactFrames() {
             Log::d("FF %i : %s\n", i, TOSTR(opId));
             
             if (_htn.isAction(opId) || _htn.isActionRepetition(opId)) {
-                //Log::d("isAction Log message: FF %i : %s\n", i, TOSTR(opId));
-
                 // Action: Setting fact frame is trivial
                 int aId = opId;
                 if (_htn.isActionRepetition(opId)) aId = _htn.getActionNameFromRepetition(opId);
@@ -101,8 +99,6 @@ void FactAnalysis::computeFactFrames() {
                 } // else: fact frame already set
 
             } else if (_htn.isReduction(opId)) {
-                //Log::d("isReduction Log message: FF %i : %s\n", i, TOSTR(opId));
-
                 // Reduction
                 const auto& reduction = _htn.getAnonymousReduction(opId);
                 FlatHashSet<int> argSet(reduction.getArguments().begin(), reduction.getArguments().end());
@@ -119,8 +115,8 @@ void FactAnalysis::computeFactFrames() {
                 for (auto& conditionalEffect : result.conditionalEffects) {
                     priorCondTotalEffs += conditionalEffect.second.size();
                 }
-                NodeHashMap<SigSet, SigSet, SigSetHasher> oldconditionalEffects = result.conditionalEffects;
-                result.conditionalEffects = NodeHashMap<SigSet, SigSet, SigSetHasher>{};
+                NodeHashMap<SigSet, SigSet, SigSetHasher, SigSetEquals> oldconditionalEffects = result.conditionalEffects;
+                //result.conditionalEffects = NodeHashMap<SigSet, SigSet, SigSetHasher, SigSetEquals>{};
                 // For each subtask of the reduction
                 for (size_t i = 0; i < reduction.getSubtasks().size(); i++) {
 
@@ -133,28 +129,22 @@ void FactAnalysis::computeFactFrames() {
 
                         // Fact frame for this child already present?
                         if (_fact_frames.count(child._name_id)) {
-                            
                             // Retrieve child's fact frame
                             FactFrame childFrame = getFactFrame(child);
-                            for (auto& eff : childFrame.effects) eff = normalizeSignature(eff, argSet);
+                            SigSet normalizedEffects;
+                            for (auto& eff : childFrame.effects) normalizedEffects.insert(normalizeSignature(eff, argSet));
 
-                            // Add all of the child's effects to the parent's effects
-                            Sig::unite(childFrame.effects, result.effects);
-                            Sig::unite(childFrame.effects, result.offsetEffects[i]);
-
-                            for (auto& conditionalEffect : childFrame.conditionalEffects) {
-                                for (auto& eff : conditionalEffect.second) {
-                                    eff = normalizeSignature(eff, argSet);
-                                }
-                            }
+                            Sig::unite(normalizedEffects, result.effects);
+                            Sig::unite(normalizedEffects, result.offsetEffects[i]);
 
                             //Log::d("Preconditions size: %i\n", childFrame.conditionalEffects.size());
                             //Log::d("Reduction preconditions: %s\n", TOSTR(result.preconditions));
                             for (auto& conditionalEffect : childFrame.conditionalEffects) {
+                                //Log::d("Child cond prereq: %s effects: %s\n", TOSTR(conditionalEffect.first), TOSTR(conditionalEffect.second));
                                 if (conditionalEffect.second.size() == 0) continue;
-                                SigSet new_prereqs = conditionalEffect.first;
-                                for (auto& prereq : new_prereqs) {
-                                    prereq = normalizeSignature(prereq, argSet);
+                                SigSet new_prereqs;
+                                for (auto& prereq : conditionalEffect.first) {
+                                    new_prereqs.insert(normalizeSignature(prereq, argSet));
                                 }
                                 SigSet resultPreconditions;
                                 for (auto& prereq : result.preconditions) {
@@ -162,8 +152,15 @@ void FactAnalysis::computeFactFrames() {
                                         resultPreconditions.insert(prereq);
                                     }
                                 }
+
+                                SigSet newEffects;
+                                for (auto& eff : conditionalEffect.second) {
+                                    newEffects.insert(normalizeSignature(eff, argSet));
+                                }
+
                                 Sig::unite(resultPreconditions, new_prereqs);
-                                Sig::unite(conditionalEffect.second, result.conditionalEffects[new_prereqs]);
+                                Sig::unite(newEffects, result.conditionalEffects[new_prereqs]);
+                                //Log::d("New cond prereq: %s effects: %s\n", TOSTR(new_prereqs), TOSTR(result.conditionalEffects[new_prereqs]));
                             }
                         }
                     }
@@ -181,22 +178,34 @@ void FactAnalysis::computeFactFrames() {
                     change = true;
                     Log::d("Effect size didn't change but conditionalEffects did:\n");
                     // SigSetHasher sigSetHasher;
+                    // FlatHashMap<int, std::vector<SigSet>> duplicates;
                     // for (auto & [prereqs, effects] : result.conditionalEffects) { 
-                    //     Log::d("Sanitycheck\n");
                     //     Log::d("prereqs: %s, effects: %s, hash: %i\n", TOSTR(prereqs), TOSTR(effects), sigSetHasher(prereqs));
-                    //     //Log::d("effects: %s, hash: %i\n", TOSTR(result.conditionalEffects[prereqs]), sigSetHasher(prereqs));
-                    //     Log::d("Sanitycheck\n");
+                    //     duplicates[sigSetHasher(prereqs)].push_back(prereqs);
                     // }
-                    for (auto & [prereqs, effects] : result.conditionalEffects) { 
-                        SigSetHasher sigSetHasher;
-                        if (sigSetHasher(effects) != sigSetHasher(oldconditionalEffects[prereqs])) {
-                            if (oldconditionalEffects[prereqs].size() != 0) {
-                                Log::d("NEW: prereqs: %s, effects: %s, hash: %i\n", TOSTR(prereqs), TOSTR(effects), sigSetHasher(prereqs));
-                                //Log::d("effects: %s, hash: %i\n", TOSTR(result.conditionalEffects[prereqs]), sigSetHasher(prereqs));
-                                Log::d("OLD: prereqs: %s, effects: %s, hash: %i\n", TOSTR(prereqs), TOSTR(oldconditionalEffects[prereqs]), sigSetHasher(prereqs));
-                            }
-                        }
-                    }
+                    
+                    // for (auto & [hashvalue, duplicateKeys] : duplicates) {
+                    //     if (duplicateKeys.size() > 1) {
+                    //         Log::e("Found duplicate keys:\n");
+                    //         for (auto & key : duplicateKeys) {
+                    //             Log::d("%s\n", TOSTR(key));
+                    //         }
+                    //         Log::d("==: %s\n", duplicateKeys[0] == duplicateKeys[1] ? "TRUE" : "FALSE");
+                    //         if (duplicateKeys[0] != duplicateKeys[1]) {
+                    //             if (duplicateKeys[0].size() != duplicateKeys[1].size()) {
+                    //                 Log::d("Not equal cause size different %i vs %i\n", duplicateKeys[0].size(), duplicateKeys[1].size());
+                    //             }
+                    //             for (const auto& sig : duplicateKeys[1]) {
+                    //                 if (!duplicateKeys[1].count(sig)) {
+                    //                     Log::d("Couldn't find %s in %s\n", TOSTR(sig), TOSTR(duplicateKeys[1]));
+                    //                     for (const auto& sig_: duplicateKeys[1]) {
+                    //                         Log::d("%s ==? %s: %s \n", TOSTR(sig), TOSTR(sig_), sig == sig_ ? "TRUE" : "FALSE");
+                    //                     }
+                    //                 }
+                    //             }
+                    //         }
+                    //     }
+                    // }
                 }
 
             } else {
@@ -204,7 +213,7 @@ void FactAnalysis::computeFactFrames() {
             }
         }
     }
-    
+
     for (int i = orderedOpIds.size()-1; i >= 0; i--) {
         int opId = orderedOpIds[i];
         for (const auto& eff: _fact_frames[opId].effects) {
@@ -222,6 +231,34 @@ void FactAnalysis::computeFactFrames() {
             }
             
         }
+        FlatHashMap<int, std::vector<SigSet>> duplicates;
+        SigSetHasher sigSetHasher;
+        for (auto & [prereqs, effects] : _fact_frames[opId].conditionalEffects) { 
+            Log::d("prereqs: %s, effects: %s, hash: %i\n", TOSTR(prereqs), TOSTR(effects), sigSetHasher(prereqs));
+            duplicates[sigSetHasher(prereqs)].push_back(prereqs);
+        }
+        for (auto & [hashvalue, duplicateKeys] : duplicates) {
+            if (duplicateKeys.size() > 1) {
+                Log::d("Found duplicate keys:\n");
+                for (auto & key : duplicateKeys) {
+                    Log::d("%s\n", TOSTR(key));
+                }
+                Log::d("==: %s\n", duplicateKeys[0] == duplicateKeys[1] ? "TRUE" : "FALSE");
+                if (duplicateKeys[0] != duplicateKeys[1]) {
+                    if (duplicateKeys[0].size() != duplicateKeys[1].size()) {
+                        Log::d("Not equal cause size different %i vs %i\n", duplicateKeys[0].size(), duplicateKeys[1].size());
+                    }
+                    for (const auto& sig : duplicateKeys[1]) {
+                        if (!duplicateKeys[1].count(sig)) {
+                            Log::d("Couldn't find %s in %s\n", TOSTR(sig), TOSTR(duplicateKeys[1]));
+                            for (const auto& sig_: duplicateKeys[1]) {
+                                Log::d("%s ==? %s: %s \n", TOSTR(sig), TOSTR(sig_), sig == sig_ ? "TRUE" : "FALSE");
+                            }
+                        }
+                    }
+                }
+            }
+        }   
     }
 
     // In a next step, use the converged fact changes to infer preconditions
@@ -319,7 +356,6 @@ SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig) {
     SigSet liftedResult;
     SigSet result;
     FactFrame factFrame = getFactFrame(sig);
-    const USigSet initState = _htn.getInitState();
     
     // Iterate through all conditionalEffects in factFrame
     for (const auto& conditionalEffect : factFrame.conditionalEffects) {
@@ -330,8 +366,8 @@ SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig) {
         for (const auto& prerequisite : conditionalEffect.first) {
             //Log::d("checking conditionalEffect prereqs: %s\n", TOSTR(prerequisite));
             if (_htn.isFullyGround(prerequisite._usig) && !_htn.hasQConstants(prerequisite._usig)) {
-                Log::d("Found rigid predicate: %s\n", TOSTR(prerequisite));
-                reachable = !prerequisite._negated != !initState.count(prerequisite._usig);
+                //Log::d("Found rigid predicate: %s\n", TOSTR(prerequisite));
+                reachable = !prerequisite._negated != !_init_state.count(prerequisite._usig);
                 // for (const USignature& groundFact : ArgIterator::getFullInstantiation(prerequisite._usig, _htn)) {
                 //     Log::d("checking conditionalEffect prereqs: %s, groundFact: %s\n", TOSTR(prerequisite), TOSTR(groundFact));
                 //     if (initState.count(groundFact)) {
@@ -341,7 +377,7 @@ SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig) {
                 //     }
                 // }
                 if (!reachable) {
-                    Log::d("Found impossible rigid prereq: %s\n", TOSTR(prerequisite));
+                    //Log::d("Found impossible rigid prereq: %s\n", TOSTR(prerequisite));
                     break;
                 }
             }
@@ -349,7 +385,7 @@ SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig) {
 
         // If any rigid, non-reachable prerequisite is found, don't add the conditionalEffects to the PFC,
         if (!reachable) {
-            Log::d("Not adding the following effects: %s\n", TOSTR(conditionalEffect.second));
+            //Log::d("Not adding the following effects: %s\n", TOSTR(conditionalEffect.second));
             continue;
         }
 
@@ -363,7 +399,7 @@ SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig) {
                     result.emplace(groundFact, fact._negated);
                 }
             } else {
-                Log::d("FACT ALREADY ADDED TO PFC\n");
+                //Log::d("FACT ALREADY ADDED TO PFC\n");
             }
         }
     }
