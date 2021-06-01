@@ -336,19 +336,7 @@ void Planner::createNextPositionFromLeft(Position& left) {
 
             bool repeatedAction = isAction && _htn.isActionRepetition(aSig._name_id);
             SigSet pfc_new = _analysis.getPossibleFactChanges(aSig);
-            //SigSet pfc_old = _analysis.getPossibleFactChangesOld(aSig);
 
-            // for (const auto& fact : pfc_new) {
-            //     if (!pfc_old.count(fact)) {
-            //         Log::d("Found new fact that isn't in the old pfcs: %s\n", TOSTR(fact));
-            //     }
-            // }
-            // for (const auto& fact : pfc_old) {
-            //     if (!pfc_new.count(fact)) {
-            //         Log::d("Found old fact that isn't in the new pfcs: %s\n", TOSTR(fact));
-            //     }
-            // }
-            //Log::d("PFC new size: %i, old size: %i\n", pfc_new.size(), pfc_old.size());
             for (const Signature& fact : pfc_new) {
                 if (isAction && !addEffect(
                         repeatedAction ? aSig.renamed(_htn.getActionNameFromRepetition(aSig._name_id)) : aSig, 
@@ -849,7 +837,6 @@ void Planner::initializeNextEffects() {
     bool isAction = true;
     for (const auto& set : ops) {
         for (const auto& aSig : *set) {
-            //SigSet pfc_old = _analysis.getPossibleFactChangesOld(aSig);
             const SigSet pfc = _analysis.getPossibleFactChanges(aSig);
             for (const Signature& eff : pfc) {
 

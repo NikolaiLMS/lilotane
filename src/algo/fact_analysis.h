@@ -31,7 +31,7 @@ private:
 
     NodeHashMap<int, FactFrame> _fact_frames;
 
-    // Set of all signature names affected by some operations effects
+    // Set of all signature names occuring in some operations effects
     FlatHashSet<int> _fluent_predicates;
     
 public:
@@ -140,6 +140,10 @@ public:
 
 private:
     FactFrame getFactFrame(const USignature& sig);
+
+    void testConditionalEffects(std::vector<int>& orderedOpIds);
+
+    SigSet filterFluentPredicates(const SigSet& unfiltered);
 };
 
 #endif
