@@ -221,6 +221,24 @@ public:
         return argPositions;
     }
 
+    std::vector<int> getNonFreeArgPositions(const std::vector<int>& sigArgs) {
+        std::vector<int> argPositions;
+        for (size_t i = 0; i < sigArgs.size(); i++) {
+            int arg = sigArgs[i];
+            if (!isVariable(arg)) argPositions.push_back(i);
+        }
+        return argPositions;
+    }
+
+    FlatHashSet<int> getFreeArgPositionsAsSet(const std::vector<int>& sigArgs) {
+        FlatHashSet<int> argPositions;
+        for (size_t i = 0; i < sigArgs.size(); i++) {
+            int arg = sigArgs[i];
+            if (isVariable(arg)) argPositions.insert(i);
+        }
+        return argPositions;
+    }
+
     inline bool isFullyGround(const USignature& sig) {
         for (int arg : sig._args) if (isVariable(arg)) return false;
         return true;

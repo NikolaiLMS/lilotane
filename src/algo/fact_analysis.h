@@ -141,6 +141,8 @@ public:
 private:
     FactFrame getFactFrame(const USignature& sig);
 
+    bool dominates(const USignature& dominator, const USignature& dominee);
+
     void testConditionalEffects(std::vector<int>& orderedOpIds);
 
     SigSet filterFluentPredicates(const SigSet& unfiltered);

@@ -262,10 +262,12 @@ SigSet FactAnalysis::getPossibleFactChangesOld(const USignature& sig) {
 
 SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig) {
     Log::d("getPossibleFactChanges for: %s\n", TOSTR(sig));
+    FlatHashMap<int, USigSet> effectsNegative;
+    FlatHashMap<int, USigSet> effectsPositive;
     SigSet liftedResult;
     SigSet result;
     FactFrame factFrame = getFactFrame(sig);
-    
+
     // Iterate through all conditionalEffects in factFrame
     for (const auto& conditionalEffect : factFrame.conditionalEffects) {
         //Log::d("checking conditionalEffect with prereqs: %s, and effects: %s\n", TOSTR(conditionalEffect)), TOSTR(std::get<1>(conditionalEffect)));
@@ -290,20 +292,79 @@ SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig) {
             continue;
         }
 
-        // otherwise add them as before.
         for (const auto& fact : conditionalEffect.second) {
             //Log::d("adding conditionalEffect effects: %s\n", TOSTR(fact));
-            if (!liftedResult.count(fact)) {
-                liftedResult.insert(fact);
-                if (fact._usig._args.empty()) result.insert(fact);
-                else for (const USignature& groundFact : ArgIterator::getFullInstantiation(fact._usig, _htn)) {
-                    result.emplace(groundFact, fact._negated);
-                }
+            if (fact._usig._args.empty()) {
+                result.insert(fact);
+            } else if (fact._negated) {
+                effectsNegative[fact._usig._name_id].insert(fact._usig);
+            } else {
+                effectsPositive[fact._usig._name_id].insert(fact._usig);
             }
+        }
+    }
+    
+    USigSet negativeEffectsToGround;
+    for (const auto& [argname, effects]: effectsNegative) {
+        USigSet dominatedSignatures;
+        for (const auto& eff: effects) {
+            if (!dominatedSignatures.count(eff)) {
+                for (const auto& innerEff: effects) {
+                    if (!dominatedSignatures.count(innerEff) && eff != innerEff) {
+                        if (dominates(innerEff, eff)) {
+                            dominatedSignatures.insert(eff);
+                            break;
+                        } else if (dominates(eff, innerEff)) {
+                            dominatedSignatures.insert(innerEff);
+                        }
+                    }
+                }
+                if (!dominatedSignatures.count(eff)) negativeEffectsToGround.insert(eff);
+            }
+        }
+    }
+
+    USigSet positiveEffectsToGround;
+    for (const auto& [argname, effects]: effectsPositive) {
+        USigSet dominatedSignatures;
+        for (const auto& eff: effects) {
+            if (!dominatedSignatures.count(eff)) {
+                for (const auto& innerEff: effects) {
+                    if (!dominatedSignatures.count(innerEff) && eff != innerEff) {
+                        if (dominates(innerEff, eff)) {
+                            dominatedSignatures.insert(eff);
+                            break;
+                        } else if (dominates(eff, innerEff)) {
+                            dominatedSignatures.insert(innerEff);
+                        }
+                    }
+                }
+                if (!dominatedSignatures.count(eff)) positiveEffectsToGround.insert(eff);
+            }
+
+        }
+    }
+
+    for (const auto& positiveEffect: positiveEffectsToGround) {
+        for (const USignature& groundFact : ArgIterator::getFullInstantiation(positiveEffect, _htn)) {
+            result.emplace(groundFact, false);
+        }
+    }
+    for (const auto& negativeEffect: negativeEffectsToGround) {
+        for (const USignature& groundFact : ArgIterator::getFullInstantiation(negativeEffect, _htn)) {
+            result.emplace(groundFact, true);
         }
     }
     Log::d("PFC %s : %s\n", TOSTR(sig), TOSTR(result));
     return result;
+}
+
+bool FactAnalysis::dominates(const USignature& dominator, const USignature& dominee) {
+    for (size_t i = 0; i < dominator._args.size(); i++) {
+        int arg = dominator._args[i];
+        if (!_htn.isVariable(arg) && (arg != dominee._args[i])) return false;
+    }
+    return true;
 }
 
 std::vector<FlatHashSet<int>> FactAnalysis::getReducedArgumentDomains(const HtnOp& op) {
