@@ -23,11 +23,11 @@ struct FactFrame {
             for (const auto& eff : offsetEffects[i]) 
                 f.offsetEffects[i].insert(eff.substitute(s));
         for (auto& conditionalEffect : conditionalEffects) {
-            SigSet new_prereqs;
-            SigSet new_effects;
-            for (const auto& prereq : conditionalEffect.first) new_prereqs.insert(prereq.substitute(s));
-            for (const auto& effect : conditionalEffect.second) new_effects.insert(effect.substitute(s));
-            Sig::unite(new_effects, f.conditionalEffects[new_prereqs]);
+            SigSet newPrereqs;
+            SigSet newEffects;
+            for (const auto& prereq : conditionalEffect.first) newPrereqs.insert(prereq.substitute(s));
+            for (const auto& effect : conditionalEffect.second) newEffects.insert(effect.substitute(s));
+            f.conditionalEffects[newPrereqs] = newEffects;
         }
         return f;
     }
