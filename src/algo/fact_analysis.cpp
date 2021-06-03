@@ -4,6 +4,31 @@
 
 #include "algo/topological_ordering.h"
 
+std::vector<int> FactAnalysis::findCycle(int nodeToFind, std::vector<int>& adjacentNodes, std::map<int, std::vector<int>>& orderingOplist, std::vector<int>& traversedNodes) {
+    for (const auto& adjacentNode : adjacentNodes) {
+        Log::d("NodeToFind: %i, adjacentNode: %i\n", nodeToFind, adjacentNode);
+        bool cycle = false;
+        for (const auto& traversedNode: traversedNodes) {
+            Log::d("TraversedNode: %i\n", traversedNode);
+            if (traversedNode == adjacentNode) cycle = true;
+        }
+        if (cycle) {
+            if (adjacentNode == nodeToFind) {
+                Log::d("Found cycle!\n");
+                traversedNodes.push_back(adjacentNode);
+                return traversedNodes;
+            } else {
+                continue;
+            }
+        } else {
+            std::vector<int> newTraversedNodes = traversedNodes;
+            newTraversedNodes.push_back(adjacentNode);
+            return findCycle(nodeToFind, orderingOplist[adjacentNode], orderingOplist, newTraversedNodes);
+        }
+    }
+    return std::vector<int>();
+}
+
 void FactAnalysis::computeFactFrames() {
 
     // Build an adjacency map for the (lifted) operations in the problem
@@ -279,6 +304,7 @@ SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig) {
             if (_htn.isFullyGround(prerequisite._usig) && !_htn.hasQConstants(prerequisite._usig)) {
                 //Log::d("Found rigid predicate: %s\n", TOSTR(prerequisite));
                 reachable = !prerequisite._negated != !_init_state.count(prerequisite._usig);
+
                 if (!reachable) {
                     //Log::d("Found impossible rigid prereq: %s\n", TOSTR(prerequisite));
                     break;
