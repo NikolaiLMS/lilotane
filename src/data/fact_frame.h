@@ -27,7 +27,7 @@ struct FactFrame {
             SigSet newEffects;
             for (const auto& prereq : conditionalEffect.first) newPrereqs.insert(prereq.substitute(s));
             for (const auto& effect : conditionalEffect.second) newEffects.insert(effect.substitute(s));
-            f.conditionalEffects[newPrereqs] = newEffects;
+            Sig::unite(newEffects, f.conditionalEffects[newPrereqs]);
         }
         return f;
     }
