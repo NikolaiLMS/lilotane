@@ -267,7 +267,6 @@ void FactAnalysis::computeFactFrames() {
 }
 
 FactFrame FactAnalysis::getFactFrame(const USignature& sig) {
-
     const FactFrame& f = _fact_frames.at(sig._name_id);
     return f.substitute(Substitution(f.sig._args, sig._args));
 }
@@ -385,10 +384,62 @@ SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig) {
     return result;
 }
 
+
+SigSet FactAnalysis::getPossibleFactChangesAlt(const USignature& sig) {
+    Log::d("getPossibleFactChanges for: %s\n", TOSTR(sig));
+    SigSet liftedResult;
+    SigSet result;
+    FactFrame factFrame = getFactFrame(sig);
+    
+    // Iterate through all conditionalEffects in factFrame
+    for (const auto& conditionalEffect : factFrame.conditionalEffects) {
+        //Log::d("checking conditionalEffect with prereqs: %s, and effects: %s\n", TOSTR(conditionalEffect)), TOSTR(std::get<1>(conditionalEffect)));
+        bool reachable = true;
+
+        // Check if any prerequisite of the conditionalEffect is rigid and not reachable in the initState
+        for (const auto& prerequisite : conditionalEffect.first) {
+            //Log::d("checking conditionalEffect prereqs: %s\n", TOSTR(prerequisite));
+            if (_htn.isFullyGround(prerequisite._usig) && !_htn.hasQConstants(prerequisite._usig)) {
+                //Log::d("Found rigid predicate: %s\n", TOSTR(prerequisite));
+                reachable = !prerequisite._negated != !_init_state.count(prerequisite._usig);
+                if (!reachable) {
+                    //Log::d("Found impossible rigid prereq: %s\n", TOSTR(prerequisite));
+                    break;
+                }
+            }
+        }
+
+        // If any rigid, non-reachable prerequisite is found, don't add the conditionalEffects to the PFC,
+        if (!reachable) {
+            //Log::d("Not adding the following effects: %s\n", TOSTR(conditionalEffect.second));
+            continue;
+        }
+
+        // otherwise add them as before.
+        for (const auto& fact : conditionalEffect.second) {
+            //Log::d("adding conditionalEffect effects: %s\n", TOSTR(fact));
+            if (!liftedResult.count(fact)) {
+                liftedResult.insert(fact);
+                if (fact._usig._args.empty()) result.insert(fact);
+                else for (const USignature& groundFact : ArgIterator::getFullInstantiation(fact._usig, _htn)) {
+                    result.emplace(groundFact, fact._negated);
+                }
+            }
+        }
+    }
+    Log::d("PFC %s : %s\n", TOSTR(sig), TOSTR(result));
+    return result;
+}
+
+
 bool FactAnalysis::dominates(const USignature& dominator, const USignature& dominee) {
     for (size_t i = 0; i < dominator._args.size(); i++) {
         int arg = dominator._args[i];
-        if (!_htn.isVariable(arg) && (arg != dominee._args[i])) return false;
+        if (_htn.isVariable(arg)) {
+            if (_htn.isQConstant(dominee._args[i])) return false;
+        } else {
+            if (arg != dominee._args[i]) return false;
+        }
     }
     return true;
 }
