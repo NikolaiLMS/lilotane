@@ -68,11 +68,14 @@ def compareBinaries(firstBinaryPath: str, secondBinaryPath: str, instancesPath: 
     results = {}
     for instancedir in [dir for dir in os.listdir(instancesPath) if os.path.isdir(f"{instancesPath}/{dir}")]:
         domain_path = f"{instancesPath}/{instancedir}"
-        domain_file_path = f"{instancesPath}/{instancedir}/domain.hddl"
 
         instance_results = []
         for file in os.listdir(domain_path):
-            if not file.startswith("domain") and file.endswith("hddl"):
+            if not "domain" in file and file.endswith(".hddl"):
+                domain_file_path = f"{instancesPath}/{instancedir}/domain.hddl"
+                if not os.path.isfile(domain_file_path):
+                    domain_file_path = f"{instancesPath}/{instancedir}/{file[:-5]}-domain.hddl"
+
                 instance_file_path = f"{domain_path}/{file}"
                 instance_result = ()
 
