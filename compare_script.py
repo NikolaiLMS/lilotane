@@ -105,7 +105,14 @@ def compareBinaries(firstBinaryPath: str, secondBinaryPath: str, instancesPath: 
                             plan_length = getSolutionLength(result_path_first)
                             time_needed = getRuntime(result_path_first)
                             if time_needed < 0.5:
-                                continue
+                                times = []
+                                for i in range(10):
+                                    p = subprocess.Popen(first_execution_cmd, shell=True, preexec_fn=os.setsid)
+                                    p.wait()
+                                    if validateSolution(result_path_first, domain_file_path, instance_file_path, validatorPath):
+                                        times.append(getRuntime(result_path_first))
+                                times.sort()
+                                time_needed = times[5]
                             finished_first += 1
                             instance_result = instance_result + (Result(file, time_needed, plan_length),)
                         else:
@@ -133,7 +140,14 @@ def compareBinaries(firstBinaryPath: str, secondBinaryPath: str, instancesPath: 
                             plan_length = getSolutionLength(result_path_second)
                             time_needed = getRuntime(result_path_second)
                             if time_needed < 0.5:
-                                continue
+                                times = []
+                                for i in range(10):
+                                    p = subprocess.Popen(second_execution_cmd, shell=True, preexec_fn=os.setsid)
+                                    p.wait()
+                                    if validateSolution(result_path_second, domain_file_path, instance_file_path, validatorPath):
+                                        times.append(getRuntime(result_path_second))
+                                times.sort()
+                                time_needed = times[5]
                             finished_second += 1
                             instance_result = instance_result + (Result(file, time_needed, plan_length),)
                         else:
@@ -229,13 +243,10 @@ def compareBinaries(firstBinaryPath: str, secondBinaryPath: str, instancesPath: 
         logger.debug(f"second version finished {finished_second} instances, did not finish {not_finished_second} instances, {errored_second} instances errored, {invalid_second} invalid solutions")
         logger.debug(f"Found {differing_solution_depth} instances with differing solution depth")
 
-        logger.debug(f"Overall average absolute difference: {round(overall_average_abs, 5)}s")
         logger.debug(f"overall average relative difference: {round(overall_average_rel*100, 5)}%")
 
-        logger.debug(f"Domain with biggest average absolute: {round(domain_biggest_difference_abs, 5)}s, domain: {domain_biggest_difference_abs_name}")
         logger.debug(f"Domain with biggest average relative: {round(domain_biggest_difference_rel*100, 5)}%, domain: {domain_biggest_difference_rel_name}")
 
-        logger.debug(f"Biggest difference absolute: {round(overall_biggest_difference_abs, 5)}s, domain: {overall_biggest_difference_abs_domain}, instance: {overall_biggest_difference_abs_instance}")
         logger.debug(f"biggest difference relative: {round(overall_biggest_difference_rel*100, 5)}%, domain: {overall_biggest_difference_rel_domain}, instance: {overall_biggest_difference_rel_instance}")
     else:
         logger.debug("Could not execute any instance successfully for both binaries")
