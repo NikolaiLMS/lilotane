@@ -335,7 +335,7 @@ void Planner::createNextPositionFromLeft(Position& left) {
         for (const auto& aSig : *set) {
 
             bool repeatedAction = isAction && _htn.isActionRepetition(aSig._name_id);
-            SigSet pfc_new = _analysis.getPossibleFactChanges(aSig);
+            SigSet pfc_new = _analysis.getPossibleFactChangesTree(aSig);
 
             for (const Signature& fact : pfc_new) {
                 if (isAction && !addEffect(
@@ -837,7 +837,7 @@ void Planner::initializeNextEffects() {
     bool isAction = true;
     for (const auto& set : ops) {
         for (const auto& aSig : *set) {
-            const SigSet pfc = _analysis.getPossibleFactChanges(aSig);
+            const SigSet pfc = _analysis.getPossibleFactChangesTree(aSig);
             for (const Signature& eff : pfc) {
 
                 if (!_htn.hasQConstants(eff._usig)) {

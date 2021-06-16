@@ -4,6 +4,8 @@
 
 #include "algo/topological_ordering.h"
 
+int DEPTH_LIMIT = 10;
+
 std::vector<int> FactAnalysis::findCycle(int nodeToFind, std::vector<int>& adjacentNodes, std::map<int, std::vector<int>>& orderingOplist, std::vector<int>& traversedNodes) {
     for (const auto& adjacentNode : adjacentNodes) {
         Log::d("NodeToFind: %i, adjacentNode: %i\n", nodeToFind, adjacentNode);
@@ -94,7 +96,6 @@ void FactAnalysis::computeFactFrames() {
                     _fact_frames[opId].preconditions = action.getPreconditions();
                     _fact_frames[opId].effects = action.getEffects();
                     SigSet filteredPrereqs = filterFluentPredicates(action.getPreconditions());
-                    _fact_frames[opId].conditionalEffects[filteredPrereqs] = action.getEffects();
                     change = true;
                 } // else: fact frame already set
 
@@ -107,7 +108,6 @@ void FactAnalysis::computeFactFrames() {
                     _fact_frames[opId].preconditions = action.getPreconditions();
                     _fact_frames[opId].effects = action.getEffects();
                     SigSet filteredPrereqs = filterFluentPredicates(action.getPreconditions());
-                    _fact_frames[opId].conditionalEffects[filteredPrereqs] = action.getEffects();
                     change = true;
                 } // else: fact frame already set
 
@@ -123,11 +123,6 @@ void FactAnalysis::computeFactFrames() {
                                             reduction.getPreconditions().end());
                 result.offsetEffects.resize(reduction.getSubtasks().size());
                 size_t priorEffs = result.effects.size();
-                size_t priorCondEffs = result.conditionalEffects.size();
-                size_t priorCondTotalEffs = 0;
-                for (auto& conditionalEffect : result.conditionalEffects) {
-                    priorCondTotalEffs += conditionalEffect.second.size();
-                }
 
                 // For each subtask of the reduction
                 for (size_t i = 0; i < reduction.getSubtasks().size(); i++) {
@@ -148,44 +143,12 @@ void FactAnalysis::computeFactFrames() {
 
                             Sig::unite(normalizedEffects, result.effects);
                             Sig::unite(normalizedEffects, result.offsetEffects[i]);
-
-                            // Pull conditionalEffects from child into reduction
-                            for (auto& conditionalEffect : childFrame.conditionalEffects) {
-                                if (conditionalEffect.second.size() == 0) continue;
-                                // Only use fluent predicates as prerequisites
-                                SigSet reductionPreconditions = filterFluentPredicates(result.preconditions);
-
-                                // Add (already filtered) prerequisites from child
-                                for (auto& prereq : conditionalEffect.first) {
-                                    reductionPreconditions.insert(normalizeSignature(prereq, argSet));
-                                }
-
-                                // Normalize effects
-                                SigSet newEffects;
-                                for (auto& eff : conditionalEffect.second) {
-                                    newEffects.insert(normalizeSignature(eff, argSet));
-                                }
-
-                                // Extend (new?) conditionalEffect entry with newEffects
-                                Sig::unite(newEffects, result.conditionalEffects[reductionPreconditions]);
-                            }
                         }
                     }
                 }
-                size_t newCondTotalEffs = 0;
-                for (auto& conditionalEffect : result.conditionalEffects) {
-                    newCondTotalEffs += conditionalEffect.second.size();
-                }
-                // Check if the fact frame has been extended non-trivially
-                Log::d("Original: Prior size: %i, new size: %i\n", priorEffs, result.effects.size());
-                Log::d("Conditional: Prior size: %i, new size: %i\n", priorCondEffs, result.conditionalEffects.size());
+
                 if (result.effects.size() > priorEffs) {
                     change = true;
-                } else if (result.conditionalEffects.size() != priorCondEffs or newCondTotalEffs > priorCondTotalEffs) {
-                    change = true;
-                    Log::d("Effect size didn't change but conditionalEffects did:\n");
-                    std::vector<int> vect{opId};
-                    testConditionalEffects(vect);
                 }
             } else {
                 Log::d("FF %s : unmatched\n", TOSTR(opId));
@@ -193,7 +156,7 @@ void FactAnalysis::computeFactFrames() {
         }
     }
 
-    testConditionalEffects(orderedOpIds);
+    //testConditionalEffects(orderedOpIds);
 
     // In a next step, use the converged fact changes to infer preconditions
     for (int i = orderedOpIds.size()-1; i >= 0; i--) {
@@ -261,6 +224,82 @@ void FactAnalysis::computeFactFrames() {
         }
     }
 
+    // Repeatedly extend the operations' fact frames until convergence of fact changes
+    change = true;
+    while (change) {
+        change = false;
+
+        // Iterate over each (lifted) operation in reversed order
+        for (int i = orderedOpIds.size()-1; i >= 0; i--) {
+            int opId = orderedOpIds[i];
+            Log::d("FF %i : %s\n", i, TOSTR(opId));
+            
+            if (_htn.isReduction(opId)) {
+                // Reduction
+                const auto& reduction = _htn.getAnonymousReduction(opId);
+                FlatHashSet<int> argSet(reduction.getArguments().begin(), reduction.getArguments().end());
+
+                // Set up (new?) fact frame with the reduction's preconditions
+                FactFrame& result = _fact_frames[opId];
+
+                std::vector<FlatHashMap<int, PFCNode>> newSubtasks;
+                int newMaxDepth = 0;
+                int newNumNodes = 0;
+                int oldNumNodes = result.numNodes;
+
+                // For each subtask of the reduction
+                for (size_t i = 0; i < reduction.getSubtasks().size(); i++) {
+
+                    // Find all possible child operations for this subtask
+                    std::vector<USignature> children;
+                    _traversal.getPossibleChildren(reduction.getSubtasks(), i, children);
+
+                    FlatHashMap<int, PFCNode> newChildren;
+
+                    // For each such child operation
+                    for (const auto& child : children) {
+
+                        // Retrieve child's fact frame
+                        if (i >= result.subtasks.size() || (!result.subtasks[i].count(child._name_id)) ||
+                            (_fact_frames[child._name_id].numNodes > result.subtasks[i][child._name_id].numNodes &&
+                                _fact_frames[child._name_id].maxDepth+1 <= DEPTH_LIMIT)) {
+                            FactFrame childFrame = getFactFrame(child);
+                            
+                            PFCNode childNode;
+                            childNode.sig = childFrame.sig;
+                            childNode.effects = childFrame.effects;
+                            childNode.preconditions = filterFluentPredicates(childFrame.preconditions);
+                            childNode.subtasks = childFrame.subtasks;
+                            childNode.normalize(argSet, normalizeSignature);
+                            childNode.maxDepth = childFrame.maxDepth;
+                            childNode.numNodes = childFrame.numNodes;
+
+                            newChildren[child._name_id] = childNode;
+
+                            newMaxDepth = std::max(newMaxDepth, childFrame.maxDepth+1);
+                        } else {
+                            newChildren[child._name_id] = result.subtasks[i][child._name_id];
+                        }
+                        newNumNodes += newChildren[child._name_id].numNodes;
+                    }
+
+                    // This check shouldn't be necessary
+                    if (newChildren.size() > 0) {
+                        newSubtasks.push_back(newChildren);
+                    }
+                }
+                result.maxDepth = newMaxDepth;
+                result.subtasks = newSubtasks;
+                result.numNodes = newNumNodes;
+                if (result.numNodes > oldNumNodes) {
+                    change = true;
+                }
+            } else {
+                Log::d("FF %s : unmatched\n", TOSTR(opId));
+            }
+        }
+    }
+
     for (const auto& [id, ff] : _fact_frames) {
         Log::d("FF %s\n", TOSTR(ff));
     }
@@ -278,6 +317,134 @@ SigSet FactAnalysis::getPossibleFactChangesOld(const USignature& sig) {
         if (fact._usig._args.empty()) result.insert(fact);
         else for (const USignature& groundFact : ArgIterator::getFullInstantiation(fact._usig, _htn)) {
             result.emplace(groundFact, fact._negated);
+        }
+    }
+    Log::d("PFC %s : %s\n", TOSTR(sig), TOSTR(result));
+    return result;
+}
+
+SigSet FactAnalysis::getPossibleFactChangesTree(const USignature& sig) {
+    Log::d("getPossibleFactChanges for: %s\n", TOSTR(sig));
+    FlatHashMap<int, USigSet> effectsNegative;
+    FlatHashMap<int, USigSet> effectsPositive;
+    SigSet result;
+    FactFrame& factFrame = _fact_frames.at(sig._name_id);
+    Substitution s = Substitution(factFrame.sig._args, sig._args);
+    int MAX_DEPTH = DEPTH_LIMIT;
+    if (factFrame.numNodes == 1) {
+        SigSet subtitutedEffects;
+        for (const auto& effect: factFrame.effects) {
+            subtitutedEffects.insert(effect.substitute(s));
+        }
+        for (const auto& eff: subtitutedEffects) {
+            if (eff._usig._args.empty()) {
+                result.insert(eff);
+            } else if (eff._negated) {
+                effectsNegative[eff._usig._name_id].insert(eff._usig);
+            } else {
+                effectsPositive[eff._usig._name_id].insert(eff._usig);
+            }
+        }
+    } else {
+        std::vector<FlatHashMap<int, PFCNode>> subtasks = factFrame.subtasks;
+        for (int i = 0; i < MAX_DEPTH; i++) {
+            std::vector<FlatHashMap<int, PFCNode>> newSubtasks;
+            for (const auto& subtask: subtasks) {
+                for (const auto& child: subtask) {
+                    SigSet substitutedPreconditions;
+                    for (const auto& prereq: child.second.preconditions) {
+                        substitutedPreconditions.insert(prereq.substitute(s));
+                    }
+                    bool preconditionsValid = true;
+                    // Check if any precondition is rigid and not valid in the initState
+                    for (const auto& precondition : substitutedPreconditions) {
+                        //Log::d("checking precondition: %s\n", TOSTR(precondition));
+                        if (_htn.isFullyGround(precondition._usig) && !_htn.hasQConstants(precondition._usig)) {
+                            //Log::d("Found ground precondition without qconstants: %s\n", TOSTR(precondition));
+                            preconditionsValid = !precondition._negated != !_init_state.count(precondition._usig);
+                            if (!preconditionsValid) {
+                                //Log::d("Found invalid rigid precondition: %s\n", TOSTR(precondition));
+                                break;
+                            }
+                        }
+                    }
+
+                    if (preconditionsValid) {
+                        if (child.second.numNodes == 1 || i+1 == MAX_DEPTH) {
+                            SigSet subtitutedEffects;
+                            for (const auto& effect: child.second.effects) {
+                                subtitutedEffects.insert(effect.substitute(s));
+                            }
+                            for (const auto& eff: subtitutedEffects) {
+                                if (eff._usig._args.empty()) {
+                                    result.insert(eff);
+                                } else if (eff._negated) {
+                                    effectsNegative[eff._usig._name_id].insert(eff._usig);
+                                } else {
+                                    effectsPositive[eff._usig._name_id].insert(eff._usig);
+                                }
+                            }
+                        } else {
+                            for (const auto& subtask: child.second.subtasks) {
+                                newSubtasks.push_back(subtask);
+                            }
+                        }
+                    }
+                }
+            }
+            subtasks = newSubtasks;
+        }
+    }
+
+    USigSet negativeEffectsToGround;
+    for (const auto& [argname, effects]: effectsNegative) {
+        USigSet dominatedSignatures;
+        for (const auto& eff: effects) {
+            if (!dominatedSignatures.count(eff)) {
+                for (const auto& innerEff: effects) {
+                    if (!dominatedSignatures.count(innerEff) && eff != innerEff) {
+                        if (dominates(innerEff, eff)) {
+                            dominatedSignatures.insert(eff);
+                            break;
+                        } else if (dominates(eff, innerEff)) {
+                            dominatedSignatures.insert(innerEff);
+                        }
+                    }
+                }
+                if (!dominatedSignatures.count(eff)) negativeEffectsToGround.insert(eff);
+            }
+        }
+    }
+
+    USigSet positiveEffectsToGround;
+    for (const auto& [argname, effects]: effectsPositive) {
+        USigSet dominatedSignatures;
+        for (const auto& eff: effects) {
+            if (!dominatedSignatures.count(eff)) {
+                for (const auto& innerEff: effects) {
+                    if (!dominatedSignatures.count(innerEff) && eff != innerEff) {
+                        if (dominates(innerEff, eff)) {
+                            dominatedSignatures.insert(eff);
+                            break;
+                        } else if (dominates(eff, innerEff)) {
+                            dominatedSignatures.insert(innerEff);
+                        }
+                    }
+                }
+                if (!dominatedSignatures.count(eff)) positiveEffectsToGround.insert(eff);
+            }
+
+        }
+    }
+
+    for (const auto& positiveEffect: positiveEffectsToGround) {
+        for (const USignature& groundFact : ArgIterator::getFullInstantiation(positiveEffect, _htn)) {
+            result.emplace(groundFact, false);
+        }
+    }
+    for (const auto& negativeEffect: negativeEffectsToGround) {
+        for (const USignature& groundFact : ArgIterator::getFullInstantiation(negativeEffect, _htn)) {
+            result.emplace(groundFact, true);
         }
     }
     Log::d("PFC %s : %s\n", TOSTR(sig), TOSTR(result));
@@ -435,11 +602,7 @@ SigSet FactAnalysis::getPossibleFactChangesAlt(const USignature& sig) {
 bool FactAnalysis::dominates(const USignature& dominator, const USignature& dominee) {
     for (size_t i = 0; i < dominator._args.size(); i++) {
         int arg = dominator._args[i];
-        if (_htn.isVariable(arg)) {
-            if (_htn.isQConstant(dominee._args[i])) return false;
-        } else {
-            if (arg != dominee._args[i]) return false;
-        }
+        if (!_htn.isVariable(arg) && arg != dominee._args[i]) return false;
     }
     return true;
 }

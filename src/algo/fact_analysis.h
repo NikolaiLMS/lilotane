@@ -103,6 +103,7 @@ public:
     SigSet getPossibleFactChanges(const USignature& sig);
     SigSet getPossibleFactChangesOld(const USignature& sig);
     SigSet getPossibleFactChangesAlt(const USignature& sig);
+    SigSet getPossibleFactChangesTree(const USignature& sig);
 
     std::vector<int> findCycle(int nodeToFind, std::vector<int>& adjacentNodes, std::map<int, std::vector<int>>& orderingOplist, std::vector<int>& traversedNodes);
 
