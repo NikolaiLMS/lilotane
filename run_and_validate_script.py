@@ -17,11 +17,12 @@ logger.addHandler(logging_handler_out)
 
 
 class Result:
-    def __init__(self, _file_id, time, plan_length, solution_depth):
+    def __init__(self, _file_id, time, plan_length, solution_depth, num_clauses):
         self._file_id: int = _file_id
         self._time_needed: float = time
         self._plan_length: int = plan_length
         self._solution_depth: int = solution_depth
+        self._num_clauses: int = num_clauses
 
 def validateSolution(solution_path: str, domain_file_path, instance_file_path, validatorPath:str):
     return not bool(os.system(f"{validatorPath} {domain_file_path} {instance_file_path} -verify {solution_path}"))
@@ -43,6 +44,11 @@ def getSolutionLength(solution_path: str) -> float:
     solution_length = int(subprocess.check_output([f"grep 'End of solution plan' {solution_path} |" + " awk '{print $9}'"], shell=True).decode()[0:-2])
     logger.debug(f"Solution_length: : {solution_length}")
     return solution_length
+
+def getNumClauses(solution_path: str) -> float:
+    num_clauses = int(subprocess.check_output([f"grep 'Total amount of clauses encoded' {solution_path} |" + " awk '{print $7}'"], shell=True).decode())
+    logger.debug(f"Num_clauses: : {num_clauses}")
+    return num_clauses
 
 def compareBinaries(binaryPath: str, instancesPath: str, outputPath: str,  validatorPath: str, timeout: int):
     logger.debug(f"Parameters:")
@@ -100,6 +106,7 @@ def compareBinaries(binaryPath: str, instancesPath: str, outputPath: str,  valid
                         depth_first = getSolutionLayer(result_path_first)
                         if first_valid:
                             plan_length = getSolutionLength(result_path_first)
+                            num_clauses = getNumClauses(result_path_first)
                             time_needed = getRuntime(result_path_first)
                             if time_needed < 0.5:
                                 times = []
@@ -111,7 +118,7 @@ def compareBinaries(binaryPath: str, instancesPath: str, outputPath: str,  valid
                                 times.sort()
                                 time_needed = times[5]
                             finished_first += 1
-                            instance_result = Result(file_id, time_needed, plan_length, depth_first)
+                            instance_result = Result(file_id, time_needed, plan_length, depth_first, num_clauses)
                         else:
                             invalid_first += 1
 
@@ -123,16 +130,19 @@ def compareBinaries(binaryPath: str, instancesPath: str, outputPath: str,  valid
     times_path = outputPath + "/times.txt"
     solution_length = outputPath + "/length.txt"
     solution_depth = outputPath + "/depth.txt"
+    num_clauses = outputPath + "/clauses.txt"
 
     time_string = ""
     solution_length_string = ""
     solution_depth_string = ""
+    num_clauses_string = ""
 
     for domain in results.keys():
         for result in results[domain]:
             time_string += f"{result._file_id} {domain} {result._time_needed}\n"
             solution_length_string += f"{result._file_id} {domain} {result._plan_length}\n"
             solution_depth_string += f"{result._file_id} {domain} {result._solution_depth}\n"
+            num_clauses_string += f"{result._file_id} {domain} {result._num_clauses}\n"
 
     with open(times_path, "w") as f:
         f.write(time_string)
@@ -140,6 +150,8 @@ def compareBinaries(binaryPath: str, instancesPath: str, outputPath: str,  valid
         f.write(solution_length_string)
     with open(solution_depth, "w") as f:
         f.write(solution_depth_string)
+    with open(num_clauses, "w") as f:
+        f.write(num_clauses_string)
         
     logger.debug(f"finished {finished_first} instances, did not finish {not_finished_first} instances, {errored_first} instances errored, {invalid_first} invalid solutions")
 
