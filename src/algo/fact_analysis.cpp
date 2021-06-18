@@ -602,7 +602,11 @@ SigSet FactAnalysis::getPossibleFactChangesAlt(const USignature& sig) {
 bool FactAnalysis::dominates(const USignature& dominator, const USignature& dominee) {
     for (size_t i = 0; i < dominator._args.size(); i++) {
         int arg = dominator._args[i];
-        if (!_htn.isVariable(arg) && arg != dominee._args[i]) return false;
+        if (_htn.isVariable(arg)) {
+            if (_htn.isQConstant(dominee._args[i])) return false;
+        } else {
+            if (arg != dominee._args[i]) return false;
+        }
     }
     return true;
 }
