@@ -244,7 +244,7 @@ void FactAnalysis::computeFactFrames() {
 
                 std::vector<FlatHashMap<int, PFCNode>> newSubtasks;
                 int newMaxDepth = 0;
-                int newNumNodes = 0;
+                int newNumNodes = 1;
                 int oldNumNodes = result.numNodes;
 
                 // For each subtask of the reduction
@@ -364,6 +364,7 @@ SigSet FactAnalysis::getPossibleFactChangesTree(const USignature& sig) {
                                 //Log::d("Found ground precondition without qconstants: %s\n", TOSTR(precondition));
                                 preconditionsValid = !precondition._negated != !_init_state.count(precondition._usig);
                             } else {
+                                preconditionsValid = precondition._negated;
                                 for (const USignature& groundFact : ArgIterator::getFullInstantiation(precondition._usig, _htn)) {
                                     if (_init_state.count(groundFact)) {
                                         preconditionsValid = !precondition._negated;

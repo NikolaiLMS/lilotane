@@ -14,7 +14,7 @@ struct PFCNode {
     int maxDepth = 0;
     int numNodes = 1;
 
-    PFCNode normalize(FlatHashSet<int> argSet, std::function<Signature(const Signature& sig, FlatHashSet<int> argSet)> normalizeFunction) const {
+    PFCNode normalize(const FlatHashSet<int>& argSet, std::function<Signature(const Signature& sig, FlatHashSet<int> argSet)> normalizeFunction) const {
         PFCNode normalizedNode;
         for (const auto& precond: preconditions) {
             normalizedNode.preconditions.insert(normalizeFunction(precond, argSet));
@@ -68,13 +68,13 @@ struct FactFrame {
         for (size_t i = 0; i < offsetEffects.size(); i++) 
             for (const auto& eff : offsetEffects[i]) 
                 f.offsetEffects[i].insert(eff.substitute(s));
-        return f;
         f.subtasks.resize(subtasks.size());
         for (size_t i = 0; i < subtasks.size(); i++) {
             for (auto& child: subtasks[i]) {
                 f.subtasks[i][child.first] = child.second.substitute(s);
             }
         }
+        return f;
     }
 };
 
