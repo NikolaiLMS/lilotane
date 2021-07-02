@@ -327,9 +327,11 @@ SigSet FactAnalysis::getPossibleFactChangesTree(const USignature& sig) {
     Log::d("getPossibleFactChanges for: %s\n", TOSTR(sig));
     FlatHashMap<int, USigSet> effectsNegative;
     FlatHashMap<int, USigSet> effectsPositive;
+
     SigSet result;
     FactFrame& factFrame = _fact_frames.at(sig._name_id);
     Substitution s = Substitution(factFrame.sig._args, sig._args);
+
     int MAX_DEPTH = DEPTH_LIMIT;
     if (factFrame.numNodes == 1) {
         SigSet subtitutedEffects;
@@ -359,23 +361,21 @@ SigSet FactAnalysis::getPossibleFactChangesTree(const USignature& sig) {
                     // Check if any precondition is rigid and not valid in the initState
                     for (const auto& precondition : substitutedPreconditions) {
                         //Log::d("checking precondition: %s\n", TOSTR(precondition));
-                        if (!_htn.hasQConstants(precondition._usig)) {
-                            if (_htn.isFullyGround(precondition._usig)) {
-                                //Log::d("Found ground precondition without qconstants: %s\n", TOSTR(precondition));
-                                preconditionsValid = !precondition._negated != !_init_state.count(precondition._usig);
-                            } else {
-                                preconditionsValid = precondition._negated;
-                                for (const USignature& groundFact : ArgIterator::getFullInstantiation(precondition._usig, _htn)) {
-                                    if (_init_state.count(groundFact)) {
-                                        preconditionsValid = !precondition._negated;
-                                        break;
-                                    }
+                        if (_htn.isFullyGround(precondition._usig)) {
+                            //Log::d("Found ground precondition without qconstants: %s\n", TOSTR(precondition));
+                            preconditionsValid = !precondition._negated != !_init_state.count(precondition._usig);
+                        } else {
+                            preconditionsValid = false;
+                            for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(precondition._usig, _htn)) {
+                                if (_init_state.count(groundFact) == !precondition._negated) {
+                                    preconditionsValid = true;
+                                    break;
                                 }
                             }
-                            if (!preconditionsValid) {
-                                //Log::d("Found invalid rigid precondition: %s\n", TOSTR(precondition));
-                                break;
-                            }
+                        }
+                        if (!preconditionsValid) {
+                            //Log::d("Found invalid rigid precondition: %s\n", TOSTR(precondition));
+                            break;
                         }
                     }
 

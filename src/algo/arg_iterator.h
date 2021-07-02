@@ -85,6 +85,7 @@ public:
     }
 
     static ArgIterator getFullInstantiation(const USignature& sig, HtnInstance& _htn);
+    static ArgIterator getFullInstantiationQConst(const USignature& sig, HtnInstance& _htn);
 };
 
 #endif
