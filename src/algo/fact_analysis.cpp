@@ -361,12 +361,13 @@ SigSet FactAnalysis::getPossibleFactChangesTree(const USignature& sig) {
                     // Check if any precondition is rigid and not valid in the initState
                     for (const auto& precondition : substitutedPreconditions) {
                         //Log::d("checking precondition: %s\n", TOSTR(precondition));
-                        if (_htn.isFullyGround(precondition._usig)) {
+                        if (_htn.isFullyGround(precondition._usig) && !_htn.hasQConstants(precondition._usig)) {
                             //Log::d("Found ground precondition without qconstants: %s\n", TOSTR(precondition));
                             preconditionsValid = !precondition._negated != !_init_state.count(precondition._usig);
                         } else {
                             preconditionsValid = false;
                             for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(precondition._usig, _htn)) {
+                                //Log::d("Ground fact: %s\n", TOSTR(groundFact));
                                 if (_init_state.count(groundFact) == !precondition._negated) {
                                     preconditionsValid = true;
                                     break;
