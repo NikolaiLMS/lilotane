@@ -306,6 +306,7 @@ SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig) {
 
                 if (!reachable) {
                     //Log::d("Found impossible rigid prereq: %s\n", TOSTR(prerequisite));
+                    _invalid_preconditions_found++;
                     break;
                 }
             }

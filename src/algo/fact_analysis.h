@@ -34,6 +34,8 @@ private:
     // Set of all signature names occuring in some operations effects
     FlatHashSet<int> _fluent_predicates;
     
+    int _invalid_preconditions_found = 0;
+    
 public:
     
     FactAnalysis(HtnInstance& htn) : _htn(htn), _traversal(htn), _init_state(_htn.getInitState()) {
@@ -42,6 +44,10 @@ public:
 
     int getRigidPredicates() {
         return _rigid_predicates_matched;
+    }
+
+    int getInvalidPreconditions() {
+        return _invalid_preconditions_found;
     }
 
     void resetReachability() {
