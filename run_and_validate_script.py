@@ -25,7 +25,7 @@ def catchProcessError(func):
     return wrapper
 
 class Result:
-    def __init__(self, _file_id, time, plan_length, solution_depth, num_clauses, invalid_subtasks, invalid_preconditions):
+    def __init__(self, _file_id, time, plan_length, solution_depth, num_clauses, invalid_subtasks, invalid_preconditions, time_preprocessing):
         self._file_id: int = _file_id
         self._time_needed: float = time
         self._plan_length: int = plan_length
@@ -33,6 +33,7 @@ class Result:
         self._num_clauses: int = num_clauses
         self._invalid_subtasks: int = invalid_subtasks
         self._invalid_preconditions: int = invalid_preconditions
+        self._time_needed_preprocessing: float = time_preprocessing
 
 def validateSolution(solution_path: str, domain_file_path, instance_file_path, validatorPath:str):
     return not bool(os.system(f"{validatorPath} {domain_file_path} {instance_file_path} -verify {solution_path}"))
@@ -62,6 +63,12 @@ def getNumClauses(solution_path: str) -> float:
     num_clauses = int(subprocess.check_output([f"grep 'Total amount of clauses encoded' {solution_path} |" + " awk '{print $7}'"], shell=True).decode())
     logger.debug(f"Num_clauses: : {num_clauses}")
     return num_clauses
+    
+@catchProcessError
+def getTimePreprocessing(solution_path: str) -> float:
+    time_preprocessing = float(subprocess.check_output([f"grep 'Mined' {solution_path} |" + " awk '{print $1}'"], shell=True).decode())
+    logger.debug(f"time_preprocessing: : {time_preprocessing}")
+    return time_preprocessing
 
 @catchProcessError
 def getInvalidPreconditions(solution_path: str) -> int:
@@ -138,7 +145,8 @@ def compareBinaries(binaryPath: str, instancesPath: str, outputPath: str,  valid
                         num_clauses = getNumClauses(result_path_first)
                         invalid_subtasks = getInvalidSubtasks(result_path_first)
                         invalid_preconditions = getInvalidPreconditions(result_path_first)
-                        unfinished_instance_result = Result(file_id, -1, -1, depth_first, num_clauses, invalid_subtasks, invalid_preconditions)
+                        time_preprocessing = getTimePreprocessing(result_path_first)
+                        unfinished_instance_result = Result(file_id, -1, -1, depth_first, num_clauses, invalid_subtasks, invalid_preconditions, time_preprocessing)
                     not_finished_first += 1
                 else: 
                     if not hasSolution(result_path_first):
@@ -153,6 +161,7 @@ def compareBinaries(binaryPath: str, instancesPath: str, outputPath: str,  valid
                             time_needed = getRuntime(result_path_first)
                             invalid_subtasks = getInvalidSubtasks(result_path_first)
                             invalid_preconditions = getInvalidPreconditions(result_path_first)
+                            time_preprocessing = getTimePreprocessing(result_path_first)
 
                             if time_needed < 0.5:
                                 times = []
@@ -164,7 +173,7 @@ def compareBinaries(binaryPath: str, instancesPath: str, outputPath: str,  valid
                                 times.sort()
                                 time_needed = times[5]
                             finished_first += 1
-                            instance_result = Result(file_id, time_needed, plan_length, depth_first, num_clauses, invalid_subtasks, invalid_preconditions)
+                            instance_result = Result(file_id, time_needed, plan_length, depth_first, num_clauses, invalid_subtasks, invalid_preconditions, time_preprocessing)
                         else:
                             invalid_first += 1
 
@@ -183,11 +192,13 @@ def compareBinaries(binaryPath: str, instancesPath: str, outputPath: str,  valid
     num_clauses = outputPath + "/clauses.txt"
     invalid_subtasks = outputPath + "/invalid_subtasks.txt"
     invalid_preconditions = outputPath + "/invalid_preconditions.txt"
+    time_preprocessing = outputPath + "/time_preprocessing.txt"
 
     num_clauses_unfinished = output_path + "/clauses_unfinished.txt"
     depth_unfinished = output_path + "/depth_unfinished.txt"
     invalid_subtasks_unfinished = outputPath + "/invalid_subtasks_unfinished.txt"
     invalid_preconditions_unfinished = outputPath + "/invalid_preconditions_unfinished.txt"
+    time_preprocessing_unfinished = outputPath + "/time_preprocessing_unfinished.txt"
 
     time_string = ""
     solution_length_string = ""
@@ -195,11 +206,13 @@ def compareBinaries(binaryPath: str, instancesPath: str, outputPath: str,  valid
     num_clauses_string = ""
     invalid_subtasks_string = ""
     invalid_preconditions_string = ""
+    time_preprocessing_string = ""
 
     num_clauses_unfinished_string = ""
     depth_unfinished_string = ""
     invalid_subtasks_unfinished_string = ""
     invalid_preconditions_unfinished_string = ""
+    time_preprocessing_unfinished_string = ""
 
     for domain in results.keys():
         for result in results[domain]:
@@ -209,6 +222,7 @@ def compareBinaries(binaryPath: str, instancesPath: str, outputPath: str,  valid
             num_clauses_string += f"{result._file_id} {domain} {result._num_clauses}\n"
             invalid_subtasks_string += f"{result._file_id} {domain} {result._invalid_subtasks}\n"
             invalid_preconditions_string += f"{result._file_id} {domain} {result._invalid_preconditions}\n"
+            time_preprocessing_string += f"{result._file_id} {domain} {result._time_needed_preprocessing}\n"
 
     for domain in unfinished_results.keys():
         for result in unfinished_results[domain]:
@@ -216,6 +230,7 @@ def compareBinaries(binaryPath: str, instancesPath: str, outputPath: str,  valid
             depth_unfinished_string += f"{result._file_id} {domain} {result._solution_depth}\n"
             invalid_subtasks_unfinished_string += f"{result._file_id} {domain} {result._invalid_subtasks}\n"
             invalid_preconditions_unfinished_string += f"{result._file_id} {domain} {result._invalid_preconditions}\n"
+            time_preprocessing_unfinished_string += f"{result._file_id} {domain} {result._time_needed_preprocessing}\n"
 
     with open(times_path, "w") as f:
         f.write(time_string)
@@ -229,6 +244,9 @@ def compareBinaries(binaryPath: str, instancesPath: str, outputPath: str,  valid
         f.write(invalid_subtasks_string)
     with open(invalid_preconditions, "w") as f:
         f.write(invalid_preconditions_string)
+    with open(time_preprocessing, "w") as f:
+        f.write(time_preprocessing_string)
+
     with open(num_clauses_unfinished, "w") as f:
         f.write(num_clauses_unfinished_string)
     with open(depth_unfinished, "w") as f:
@@ -237,6 +255,8 @@ def compareBinaries(binaryPath: str, instancesPath: str, outputPath: str,  valid
         f.write(invalid_subtasks_unfinished_string)
     with open(invalid_preconditions_unfinished, "w") as f:
         f.write(invalid_preconditions_unfinished_string)
+    with open(time_preprocessing_unfinished, "w") as f:
+        f.write(time_preprocessing_unfinished_string)
 
     logger.debug(f"finished {finished_first} instances, did not finish {not_finished_first} instances, {errored_first} instances errored, {invalid_first} invalid solutions")
 
