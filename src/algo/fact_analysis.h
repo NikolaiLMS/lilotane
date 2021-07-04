@@ -12,6 +12,8 @@ class FactAnalysis {
 
 private:
     int _rigid_predicates_matched = 0;
+    int _invalid_preconditions_found = 0;
+    int _invalid_subtasks_found = 0;
     HtnInstance& _htn;
     NetworkTraversal _traversal;
 
@@ -40,8 +42,16 @@ public:
         resetReachability();
     }
 
-    int getRigidPredicates() {
+    int getRigidPredicatesMatched() {
         return _rigid_predicates_matched;
+    }
+
+    int getInvalidPreconditionsFound() {
+        return _invalid_preconditions_found;
+    }
+
+    int getInvalidSubtasksFound() {
+        return _invalid_subtasks_found;
     }
 
     void resetReachability() {

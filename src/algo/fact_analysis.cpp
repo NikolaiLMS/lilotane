@@ -352,6 +352,7 @@ SigSet FactAnalysis::getPossibleFactChangesTree(const USignature& sig) {
         for (int i = 0; i < MAX_DEPTH; i++) {
             std::vector<FlatHashMap<int, PFCNode>> newSubtasks;
             for (const auto& subtask: subtasks) {
+                bool subtaskValid = false;
                 for (const auto& child: subtask) {
                     SigSet substitutedPreconditions;
                     for (const auto& prereq: child.second.preconditions) {
@@ -364,23 +365,16 @@ SigSet FactAnalysis::getPossibleFactChangesTree(const USignature& sig) {
                         if (_htn.isFullyGround(precondition._usig) && !_htn.hasQConstants(precondition._usig)) {
                             //Log::d("Found ground precondition without qconstants: %s\n", TOSTR(precondition));
                             preconditionsValid = !precondition._negated != !_init_state.count(precondition._usig);
-                        } else {
-                            preconditionsValid = false;
-                            for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(precondition._usig, _htn)) {
-                                //Log::d("Ground fact: %s\n", TOSTR(groundFact));
-                                if (_init_state.count(groundFact) == !precondition._negated) {
-                                    preconditionsValid = true;
-                                    break;
-                                }
-                            }
                         }
                         if (!preconditionsValid) {
                             //Log::d("Found invalid rigid precondition: %s\n", TOSTR(precondition));
+                            _invalid_preconditions_found++;
                             break;
                         }
                     }
 
                     if (preconditionsValid) {
+                        subtaskValid = true;
                         if (child.second.numNodes == 1 || i+1 == MAX_DEPTH) {
                             SigSet subtitutedEffects;
                             for (const auto& effect: child.second.effects) {
@@ -401,6 +395,9 @@ SigSet FactAnalysis::getPossibleFactChangesTree(const USignature& sig) {
                             }
                         }
                     }
+                }
+                if (!subtaskValid) {
+                    _invalid_subtasks_found++;
                 }
             }
             subtasks = newSubtasks;

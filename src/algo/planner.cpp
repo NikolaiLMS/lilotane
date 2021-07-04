@@ -966,4 +966,6 @@ void Planner::printStatistics() {
     Log::i("# retroactive prunings: %i\n", _pruning.getNumRetroactivePunings());
     Log::i("# retroactively pruned operations: %i\n", _pruning.getNumRetroactivelyPrunedOps());
     Log::i("# dominated operations: %i\n", _domination_resolver.getNumDominatedOps());
+    Log::i("# invalid preconditions found in getPFC: %i\n", _analysis.getInvalidPreconditionsFound());
+    Log::i("# invalid subtasks found in getPFC: %i\n", _analysis.getInvalidSubtasksFound());
 }
