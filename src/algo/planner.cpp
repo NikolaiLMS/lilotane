@@ -335,8 +335,19 @@ void Planner::createNextPositionFromLeft(Position& left) {
         for (const auto& aSig : *set) {
 
             bool repeatedAction = isAction && _htn.isActionRepetition(aSig._name_id);
-            SigSet pfc_new = _analysis.getPossibleFactChangesTree(aSig);
+            SigSet pfc_new;
+            try {
+                pfc_new = _analysis.getPossibleFactChangesTree(aSig);
+            } catch(const std::invalid_argument& e) {
+                // Impossible direct effect: forbid action retroactively.
+                Log::w("Retroactively prune action %s because it has invalid subtask\n", TOSTR(aSig));
+                actionsToRemove.insert(aSig);
 
+                // Also remove any virtualized actions corresponding to this action
+                USignature repSig = aSig.renamed(_htn.getRepetitionNameOfAction(aSig._name_id));
+                if (left.hasAction(repSig)) actionsToRemove.insert(repSig);
+                continue;
+            }
             for (const Signature& fact : pfc_new) {
                 if (isAction && !addEffect(
                         repeatedAction ? aSig.renamed(_htn.getActionNameFromRepetition(aSig._name_id)) : aSig, 
@@ -837,19 +848,23 @@ void Planner::initializeNextEffects() {
     bool isAction = true;
     for (const auto& set : ops) {
         for (const auto& aSig : *set) {
-            const SigSet pfc = _analysis.getPossibleFactChangesTree(aSig);
-            for (const Signature& eff : pfc) {
+            try {
+                const SigSet pfc = _analysis.getPossibleFactChangesTree(aSig);
+                for (const Signature& eff : pfc) {
 
-                if (!_htn.hasQConstants(eff._usig)) {
-                    // New ground fact: set before the action may happen
-                    initializeFact(newPos, eff._usig); 
-                } else {
-                    std::vector<int> sorts = _htn.getOpSortsForCondition(eff._usig, aSig);
-                    for (const USignature& decEff : _htn.decodeObjects(eff._usig, _htn.getEligibleArgs(eff._usig, sorts))) {           
+                    if (!_htn.hasQConstants(eff._usig)) {
                         // New ground fact: set before the action may happen
-                        initializeFact(newPos, decEff);
+                        initializeFact(newPos, eff._usig); 
+                    } else {
+                        std::vector<int> sorts = _htn.getOpSortsForCondition(eff._usig, aSig);
+                        for (const USignature& decEff : _htn.decodeObjects(eff._usig, _htn.getEligibleArgs(eff._usig, sorts))) {           
+                            // New ground fact: set before the action may happen
+                            initializeFact(newPos, decEff);
+                        }
                     }
                 }
+            } catch(const std::invalid_argument& e) {
+                continue;
             }
         }
         isAction = false;

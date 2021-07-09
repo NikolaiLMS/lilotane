@@ -109,6 +109,8 @@ public:
     bool isInitialized(const USignature& fact) {
         return _initialized_facts.count(fact);
     }
+    void normalizeSubstituteNodeDiff(const PFCNode& newNode, PFCNode& nodeToNormalize, const FlatHashSet<int>& argSet, const Substitution& s, 
+        std::function<Signature(const Signature& sig, FlatHashSet<int> argSet)> normalizeFunction, int depthLimit);
 
     SigSet getPossibleFactChanges(const USignature& sig);
     SigSet getPossibleFactChangesOld(const USignature& sig);

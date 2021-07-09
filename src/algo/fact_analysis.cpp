@@ -4,7 +4,8 @@
 
 #include "algo/topological_ordering.h"
 
-int DEPTH_LIMIT = 10;
+int DEPTH_LIMIT = 4;
+int NODE_LIMIT = 100;
 
 std::vector<int> FactAnalysis::findCycle(int nodeToFind, std::vector<int>& adjacentNodes, std::map<int, std::vector<int>>& orderingOplist, std::vector<int>& traversedNodes) {
     for (const auto& adjacentNode : adjacentNodes) {
@@ -29,6 +30,37 @@ std::vector<int> FactAnalysis::findCycle(int nodeToFind, std::vector<int>& adjac
         }
     }
     return std::vector<int>();
+}
+
+void FactAnalysis::normalizeSubstituteNodeDiff(const PFCNode& newNode, PFCNode& nodeToExtend, const FlatHashSet<int>& argSet, const Substitution& s, 
+        std::function<Signature(const Signature& sig, FlatHashSet<int> argSet)> normalizeFunction, int depthLimit) {
+    if (depthLimit == 0) {
+        return;
+    }
+    if (nodeToExtend.subtasks.size() == 0) {
+        nodeToExtend.subtasks.reserve(newNode.subtasks.size());
+        for (size_t i = 0; i < newNode.subtasks.size(); i++) {
+            nodeToExtend.subtasks.push_back(new NodeHashMap<int, PFCNode>);
+        }
+    }
+    int numNodes = 1;
+    int maxDepth = 0;
+    for (size_t i = 0; i < newNode.subtasks.size(); i++) {
+        for (const auto& [id, child]: *newNode.subtasks[i]) {
+            if (!(*nodeToExtend.subtasks[i]).count(id)) {
+                (*nodeToExtend.subtasks[i])[id] = child.cutDepth(depthLimit-1);
+                (*nodeToExtend.subtasks[i])[id].substitute(s);
+                (*nodeToExtend.subtasks[i])[id].normalize(argSet, normalizeFunction);
+            } else if (child.numNodes > (*nodeToExtend.subtasks[i])[id].numNodes) {
+                normalizeSubstituteNodeDiff(child, (*nodeToExtend.subtasks[i])[id], argSet, s, normalizeFunction, depthLimit-1);
+            }
+            PFCNode& extendedNode = (*nodeToExtend.subtasks[i])[id];
+            maxDepth = extendedNode.maxDepth+1 > maxDepth ? extendedNode.maxDepth+1 : maxDepth;
+            numNodes += extendedNode.numNodes;
+        }
+    }
+    nodeToExtend.maxDepth = maxDepth;
+    nodeToExtend.numNodes = numNodes;
 }
 
 void FactAnalysis::computeFactFrames() {
@@ -226,9 +258,11 @@ void FactAnalysis::computeFactFrames() {
 
     // Repeatedly extend the operations' fact frames until convergence of fact changes
     change = true;
+    int iteration = 0;
     while (change) {
         change = false;
-
+        Log::e("Iteration #%i\n", iteration);
+        iteration++;
         // Iterate over each (lifted) operation in reversed order
         for (int i = orderedOpIds.size()-1; i >= 0; i--) {
             int opId = orderedOpIds[i];
@@ -238,59 +272,67 @@ void FactAnalysis::computeFactFrames() {
                 // Reduction
                 const auto& reduction = _htn.getAnonymousReduction(opId);
                 FlatHashSet<int> argSet(reduction.getArguments().begin(), reduction.getArguments().end());
+                //Log::e("Reduction: %s\n", TOSTR(opId));
 
                 // Set up (new?) fact frame with the reduction's preconditions
                 FactFrame& result = _fact_frames[opId];
 
-                std::vector<FlatHashMap<int, PFCNode>> newSubtasks;
                 int newMaxDepth = 0;
-                int newNumNodes = 1;
                 int oldNumNodes = result.numNodes;
+                int newNumNodes = oldNumNodes;
+                if (result.subtasks.size() == 0) {
+                    result.subtasks.reserve(reduction.getSubtasks().size());
+                    for (size_t j = 0; j < reduction.getSubtasks().size(); j++) {
+                        result.subtasks.push_back(new NodeHashMap<int, PFCNode>);
+                    }
+                }
 
-                // For each subtask of the reduction
+                // For each subtask of the reduction`
                 for (size_t i = 0; i < reduction.getSubtasks().size(); i++) {
 
                     // Find all possible child operations for this subtask
                     std::vector<USignature> children;
                     _traversal.getPossibleChildren(reduction.getSubtasks(), i, children);
 
-                    FlatHashMap<int, PFCNode> newChildren;
 
                     // For each such child operation
                     for (const auto& child : children) {
 
-                        // Retrieve child's fact frame
-                        if (i >= result.subtasks.size() || (!result.subtasks[i].count(child._name_id)) ||
-                            (_fact_frames[child._name_id].numNodes > result.subtasks[i][child._name_id].numNodes &&
-                                _fact_frames[child._name_id].maxDepth+1 <= DEPTH_LIMIT)) {
-                            FactFrame childFrame = getFactFrame(child);
-                            
-                            PFCNode childNode;
-                            childNode.sig = childFrame.sig;
-                            childNode.effects = childFrame.effects;
-                            childNode.preconditions = filterFluentPredicates(childFrame.preconditions);
-                            childNode.subtasks = childFrame.subtasks;
-                            childNode.normalize(argSet, normalizeSignature);
-                            childNode.maxDepth = childFrame.maxDepth;
-                            childNode.numNodes = childFrame.numNodes;
-
-                            newChildren[child._name_id] = childNode;
-
-                            newMaxDepth = std::max(newMaxDepth, childFrame.maxDepth+1);
+                        FactFrame& childFrame = _fact_frames.at(child._name_id);
+                        Substitution s = Substitution(childFrame.sig._args, child._args);
+                        if (!(*result.subtasks[i]).count(child._name_id)) {
+                            PFCNode initialNode;
+                            initialNode.sig = childFrame.sig;
+                            initialNode.effects = childFrame.effects;
+                            initialNode.preconditions = filterFluentPredicates(childFrame.preconditions);
+                            initialNode.substitute(s);
+                            initialNode.normalize(argSet, normalizeSignature);
+                            (*result.subtasks[i])[child._name_id] = initialNode;
                         } else {
-                            newChildren[child._name_id] = result.subtasks[i][child._name_id];
+                            newNumNodes -= (*result.subtasks[i])[child._name_id].numNodes;
                         }
-                        newNumNodes += newChildren[child._name_id].numNodes;
-                    }
+                        PFCNode& currentChildNode = (*result.subtasks[i])[child._name_id];
 
-                    // This check shouldn't be necessary
-                    if (newChildren.size() > 0) {
-                        newSubtasks.push_back(newChildren);
+                        PFCNode childNode;
+                        childNode.sig = childFrame.sig;
+                        childNode.effects = childFrame.effects;
+                        childNode.preconditions = filterFluentPredicates(childFrame.preconditions);
+                        childNode.subtasks = childFrame.subtasks;
+                        childNode.maxDepth = childFrame.maxDepth;
+                        childNode.numNodes = childFrame.numNodes;
+                        // Retrieve child's fact frame
+                        if (childNode.numNodes > currentChildNode.numNodes) {
+                            //Log::e("Normalize if\n");
+                            normalizeSubstituteNodeDiff(childNode, currentChildNode, argSet, s, normalizeSignature, DEPTH_LIMIT-1);
+                        }
+                        newMaxDepth = std::max(newMaxDepth, currentChildNode.maxDepth+1);
+                        newNumNodes += currentChildNode.numNodes;
                     }
                 }
                 result.maxDepth = newMaxDepth;
-                result.subtasks = newSubtasks;
                 result.numNodes = newNumNodes;
+                Log::e("newNumNodes: %i\n", newNumNodes);
+                Log::e("newMaxDepth: %i\n", newMaxDepth);
                 if (result.numNodes > oldNumNodes) {
                     change = true;
                 }
@@ -301,7 +343,15 @@ void FactAnalysis::computeFactFrames() {
     }
 
     for (const auto& [id, ff] : _fact_frames) {
-        Log::d("FF %s\n", TOSTR(ff));
+        Log::d("FF: %s\n", TOSTR(ff));
+    }
+
+    for (const auto& [id, ff] : _fact_frames) {
+        Log::d("FF: numNodes: %i (%s)\n", ff.numNodes, TOSTR(id));
+    }
+
+    for (const auto& [id, ff] : _fact_frames) {
+        Log::d("FF: maxDepth: %i (%s)\n", ff.maxDepth, TOSTR(id));
     }
 }
 
@@ -324,7 +374,7 @@ SigSet FactAnalysis::getPossibleFactChangesOld(const USignature& sig) {
 }
 
 SigSet FactAnalysis::getPossibleFactChangesTree(const USignature& sig) {
-    Log::d("getPossibleFactChanges for: %s\n", TOSTR(sig));
+    //Log::e("getPossibleFactChanges for: %s\n", TOSTR(sig));
     FlatHashMap<int, USigSet> effectsNegative;
     FlatHashMap<int, USigSet> effectsPositive;
 
@@ -332,7 +382,7 @@ SigSet FactAnalysis::getPossibleFactChangesTree(const USignature& sig) {
     FactFrame& factFrame = _fact_frames.at(sig._name_id);
     Substitution s = Substitution(factFrame.sig._args, sig._args);
 
-    int MAX_DEPTH = DEPTH_LIMIT;
+    int MAX_DEPTH = 1;
     if (factFrame.numNodes == 1) {
         SigSet subtitutedEffects;
         for (const auto& effect: factFrame.effects) {
@@ -348,14 +398,16 @@ SigSet FactAnalysis::getPossibleFactChangesTree(const USignature& sig) {
             }
         }
     } else {
-        std::vector<FlatHashMap<int, PFCNode>> subtasks = factFrame.subtasks;
+        std::vector<NodeHashMap<int, PFCNode>*> subtasks = factFrame.subtasks;
         for (int i = 0; i < MAX_DEPTH; i++) {
-            std::vector<FlatHashMap<int, PFCNode>> newSubtasks;
+            std::vector<NodeHashMap<int, PFCNode>*> newSubtasks;
             for (const auto& subtask: subtasks) {
                 bool subtaskValid = false;
-                for (const auto& child: subtask) {
+                //Log::e("subtasksize: %i\n", (*subtask).size());
+                for (const auto& child: *subtask) {
                     SigSet substitutedPreconditions;
                     for (const auto& prereq: child.second.preconditions) {
+                        //Log::e("Unsubstituted prereq: %s\n", TOSTR(prereq));
                         substitutedPreconditions.insert(prereq.substitute(s));
                     }
                     bool preconditionsValid = true;
@@ -376,7 +428,7 @@ SigSet FactAnalysis::getPossibleFactChangesTree(const USignature& sig) {
                             }
                         }
                         if (!preconditionsValid) {
-                            //Log::d("Found invalid rigid precondition: %s\n", TOSTR(precondition));
+                            //Log::e("Found invalid rigid precondition: %s\n", TOSTR(precondition));
                             _invalid_preconditions_found++;
                             break;
                         }
@@ -406,7 +458,11 @@ SigSet FactAnalysis::getPossibleFactChangesTree(const USignature& sig) {
                     }
                 }
                 if (!subtaskValid) {
+                    Log::e("Found invalid subtask at depth %i\n", i);
                     _invalid_subtasks_found++;
+                    if (i == 0) {
+                        throw std::invalid_argument("getPFC: Operator has subtask with no valid children\n");
+                    }
                 }
             }
             subtasks = newSubtasks;
@@ -464,7 +520,7 @@ SigSet FactAnalysis::getPossibleFactChangesTree(const USignature& sig) {
             result.emplace(groundFact, true);
         }
     }
-    Log::d("PFC %s : %s\n", TOSTR(sig), TOSTR(result));
+    //Log::d("PFC %s : %s\n", TOSTR(sig), TOSTR(result));
     return result;
 }
 
