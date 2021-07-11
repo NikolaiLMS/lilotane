@@ -303,6 +303,15 @@ SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig) {
             if (_htn.isFullyGround(prerequisite._usig) && !_htn.hasQConstants(prerequisite._usig)) {
                 //Log::d("Found rigid predicate: %s\n", TOSTR(prerequisite));
                 reachable = !prerequisite._negated != !_init_state.count(prerequisite._usig);
+            } else {
+                reachable = false;
+                for (const auto& groundFact : ArgIterator::getFullInstantiationQConst(prerequisite._usig, _htn)) {
+                    //Log::d("Ground fact: %s\n", TOSTR(groundFact));
+                    if (_init_state.count(groundFact) == !prerequisite._negated) {
+                        reachable = true;
+                        break;
+                    }
+                }
             }
             if (!reachable) {
                 //Log::d("Found impossible rigid prereq: %s\n", TOSTR(prerequisite));
