@@ -4,8 +4,8 @@
 
 #include "algo/topological_ordering.h"
 
-int DEPTH_LIMIT = 4;
-int NODE_LIMIT = 100;
+int DEPTH_LIMIT = 1;
+const int NODE_LIMIT = 100;
 
 std::vector<int> FactAnalysis::findCycle(int nodeToFind, std::vector<int>& adjacentNodes, std::map<int, std::vector<int>>& orderingOplist, std::vector<int>& traversedNodes) {
     for (const auto& adjacentNode : adjacentNodes) {
@@ -32,6 +32,7 @@ std::vector<int> FactAnalysis::findCycle(int nodeToFind, std::vector<int>& adjac
     return std::vector<int>();
 }
 
+// recursively extends nodeToExtend with the new nodes in newNode until the depthLimit, the new nodes are substituted and normalized
 void FactAnalysis::normalizeSubstituteNodeDiff(const PFCNode& newNode, PFCNode& nodeToExtend, const FlatHashSet<int>& argSet, const Substitution& s, 
         std::function<Signature(const Signature& sig, FlatHashSet<int> argSet)> normalizeFunction, int depthLimit) {
     if (depthLimit == 0) {
@@ -117,7 +118,6 @@ void FactAnalysis::computeFactFrames() {
         for (int i = orderedOpIds.size()-1; i >= 0; i--) {
             int opId = orderedOpIds[i];
             Log::d("FF %i : %s\n", i, TOSTR(opId));
-            
             if (_htn.isAction(opId) || _htn.isActionRepetition(opId)) {
                 // Action: Setting fact frame is trivial
                 int aId = opId;
@@ -165,7 +165,6 @@ void FactAnalysis::computeFactFrames() {
                     
                     // For each such child operation
                     for (const auto& child : children) {
-
                         // Fact frame for this child already present?
                         if (_fact_frames.count(child._name_id)) {
                             // Retrieve child's fact frame
@@ -188,22 +187,20 @@ void FactAnalysis::computeFactFrames() {
         }
     }
 
-    //testConditionalEffects(orderedOpIds);
-
+    int avgBranchDegreeArithmetic = 0;
+    int numRedcutions = 0;
     // In a next step, use the converged fact changes to infer preconditions
     for (int i = orderedOpIds.size()-1; i >= 0; i--) {
         int opId = orderedOpIds[i];
         Log::d("FF %i : %s\n", i, TOSTR(opId));
-        
         if (_htn.isReduction(opId) && !_htn.isReductionPrimitivizable(opId)) {
-
+            numRedcutions++;
             const auto& reduction = _htn.getAnonymousReduction(opId);
             FlatHashSet<int> argSet(reduction.getArguments().begin(), reduction.getArguments().end());
             FactFrame& result = _fact_frames[opId];
 
             // Effects which may be caused by the operation up to the current subtask
             SigSet effects;
-
             // For each subtask of the reduction
             for (size_t i = 0; i < reduction.getSubtasks().size(); i++) {    
 
@@ -215,7 +212,7 @@ void FactAnalysis::computeFactFrames() {
                 FactFrame offsetFrame;
                 bool firstChild = true;
                 for (const auto& child : children) {
-
+                    avgBranchDegreeArithmetic++;
                     // Retrieve child's fact frame
                     FactFrame childFrame = _fact_frames.at(child._name_id);
                     // Convert fact frame to local args of child
@@ -250,23 +247,27 @@ void FactAnalysis::computeFactFrames() {
                 // Update effects with offset effects found above
                 Sig::unite(result.offsetEffects[i], effects);
             }
-
             // Clear unneeded cached offset effects
             result.offsetEffects.clear();
         }
     }
+    avgBranchDegreeArithmetic = int(avgBranchDegreeArithmetic/numRedcutions);
+    DEPTH_LIMIT = std::min(int(std::log(NODE_LIMIT) / std::log(avgBranchDegreeArithmetic)), 1);
+    Log::e("avgBranchDegreeArithmetic: %i\n", avgBranchDegreeArithmetic);
+    Log::e("DEPTH_LIMIT: %i\n", DEPTH_LIMIT);
 
     // Repeatedly extend the operations' fact frames until convergence of fact changes
     change = true;
     int iteration = 0;
     while (change) {
+        int avgNumNodes = 0;
         change = false;
-        Log::e("Iteration #%i\n", iteration);
+        //Log::e("Iteration #%i\n", iteration);
         iteration++;
         // Iterate over each (lifted) operation in reversed order
         for (int i = orderedOpIds.size()-1; i >= 0; i--) {
             int opId = orderedOpIds[i];
-            Log::d("FF %i : %s\n", i, TOSTR(opId));
+            //Log::d("FF %i : %s\n", i, TOSTR(opId));
             
             if (_htn.isReduction(opId)) {
                 // Reduction
@@ -331,8 +332,9 @@ void FactAnalysis::computeFactFrames() {
                 }
                 result.maxDepth = newMaxDepth;
                 result.numNodes = newNumNodes;
-                Log::e("newNumNodes: %i\n", newNumNodes);
-                Log::e("newMaxDepth: %i\n", newMaxDepth);
+                avgNumNodes += newNumNodes;
+                //Log::e("newNumNodes: %i\n", newNumNodes);
+                //Log::e("newMaxDepth: %i\n", newMaxDepth);
                 if (result.numNodes > oldNumNodes) {
                     change = true;
                 }
@@ -340,19 +342,13 @@ void FactAnalysis::computeFactFrames() {
                 Log::d("FF %s : unmatched\n", TOSTR(opId));
             }
         }
+        avgNumNodes = int(avgNumNodes / numRedcutions);
+        Log::e("avgNumNodes: %i\n", avgNumNodes);
     }
 
-    for (const auto& [id, ff] : _fact_frames) {
-        Log::d("FF: %s\n", TOSTR(ff));
-    }
-
-    for (const auto& [id, ff] : _fact_frames) {
-        Log::d("FF: numNodes: %i (%s)\n", ff.numNodes, TOSTR(id));
-    }
-
-    for (const auto& [id, ff] : _fact_frames) {
-        Log::d("FF: maxDepth: %i (%s)\n", ff.maxDepth, TOSTR(id));
-    }
+    // for (const auto& [id, ff] : _fact_frames) {
+    //     Log::d("FF: %s\n", TOSTR(ff));
+    // }
 }
 
 FactFrame FactAnalysis::getFactFrame(const USignature& sig) {
@@ -405,6 +401,7 @@ SigSet FactAnalysis::getPossibleFactChangesTree(const USignature& sig) {
                 bool subtaskValid = false;
                 //Log::e("subtasksize: %i\n", (*subtask).size());
                 for (const auto& child: *subtask) {
+                    //Log::e("Checking child: %s\n", TOSTR(child.second.sig._name_id));
                     SigSet substitutedPreconditions;
                     for (const auto& prereq: child.second.preconditions) {
                         //Log::e("Unsubstituted prereq: %s\n", TOSTR(prereq));
@@ -620,7 +617,7 @@ SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig) {
             result.emplace(groundFact, true);
         }
     }
-    Log::d("PFC %s : %s\n", TOSTR(sig), TOSTR(result));
+    //Log::d("PFC %s : %s\n", TOSTR(sig), TOSTR(result));
     return result;
 }
 
@@ -667,7 +664,7 @@ SigSet FactAnalysis::getPossibleFactChangesAlt(const USignature& sig) {
             }
         }
     }
-    Log::d("PFC %s : %s\n", TOSTR(sig), TOSTR(result));
+    //Log::d("PFC %s : %s\n", TOSTR(sig), TOSTR(result));
     return result;
 }
 
