@@ -252,7 +252,7 @@ void FactAnalysis::computeFactFrames() {
         }
     }
     avgBranchDegreeArithmetic = int(avgBranchDegreeArithmetic/numRedcutions);
-    DEPTH_LIMIT = std::min(int(std::log(NODE_LIMIT) / std::log(avgBranchDegreeArithmetic)), 1);
+    DEPTH_LIMIT = std::max(int(std::log(NODE_LIMIT) / std::log(avgBranchDegreeArithmetic)), 1);
     Log::e("avgBranchDegreeArithmetic: %i\n", avgBranchDegreeArithmetic);
     Log::e("DEPTH_LIMIT: %i\n", DEPTH_LIMIT);
 
