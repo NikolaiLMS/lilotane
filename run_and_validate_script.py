@@ -88,7 +88,7 @@ def getLastIteration(solution_path: str) -> float:
     logger.error(f"last_iteration: : {last_iteration}")
     return last_iteration
 
-def compareBinaries(binaryPath: str, instancesPath: str, outputPath: str,  validatorPath: str, timeout: int):
+def compareBinaries(binaryPath: str, instancesPath: str, outputPath: str,  validatorPath: str, timeout: int, additional_params: str):
     logger.debug(f"Parameters:")
     logger.debug(f"BinaryPath: {binaryPath}")
     logger.debug(f"instancesPath: {instancesPath}")
@@ -128,7 +128,7 @@ def compareBinaries(binaryPath: str, instancesPath: str, outputPath: str,  valid
 
                 result_path_first = result_dir + f"/{file}.log"
 
-                first_execution_cmd = f"{binaryPath} {domain_file_path} {instance_file_path} -co=0 > {result_path_first}"
+                first_execution_cmd = f"{binaryPath} {domain_file_path} {instance_file_path} -co=0 {additional_params} > {result_path_first}"
 
 
                 logger.debug(f"\n########Starting execution of instance {file} of domain {instancedir} ######")
@@ -286,9 +286,11 @@ if __name__ == "__main__":
 
 
     validator_path = convert_relative(sys.argv[5])
-
+    
     timeout = int(sys.argv[6])
 
-    compareBinaries(binary, instance_path, output_path, validator_path, timeout)
+    additional_params = str(sys.argv[7])
+
+    compareBinaries(binary, instance_path, output_path, validator_path, timeout, additional_params)
 
 
