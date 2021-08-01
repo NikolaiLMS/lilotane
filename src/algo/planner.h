@@ -29,7 +29,7 @@ private:
     Parameters& _params;
     HtnInstance& _htn;
 
-    FactAnalysis _analysis;
+    FactAnalysis& _analysis;
     Instantiator _instantiator;
     Encoding _enc;
     MinRES _minres;
@@ -58,8 +58,8 @@ private:
     size_t _num_instantiated_reductions = 0;
 
 public:
-    Planner(Parameters& params, HtnInstance& htn) : _params(params), _htn(htn),
-            _analysis(_htn), 
+    Planner(Parameters& params, HtnInstance& htn, FactAnalysis& analysis) : _params(params), _htn(htn),
+            _analysis(analysis), 
             _instantiator(params, htn, _analysis), 
             _enc(_params, _htn, _analysis, _layers, [this](){checkTermination();}), 
             _minres(_htn), 

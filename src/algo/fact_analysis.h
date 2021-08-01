@@ -5,19 +5,15 @@
 #include "data/htn_instance.h"
 #include "algo/network_traversal.h"
 #include "algo/arg_iterator.h"
+#include "algo/compute_fact_frame.h"
 
 typedef std::function<bool(const USignature&, bool)> StateEvaluator;
 
 class FactAnalysis {
 
 private:
-    int _rigid_predicates_matched = 0;
-    int _invalid_preconditions_found = 0;
-    int _invalid_subtasks_found = 0;
-    HtnInstance& _htn;
     NetworkTraversal _traversal;
 
-    USigSet _init_state;
     USigSet _pos_layer_facts;
     USigSet _neg_layer_facts;
 
@@ -30,17 +26,20 @@ private:
     NodeHashMap<int, SigSet> _fact_changes; 
     NodeHashMap<int, SigSet> _lifted_fact_changes;
     NodeHashMap<USignature, SigSet, USignatureHasher> _fact_changes_cache;
-
-    NodeHashMap<int, FactFrame> _fact_frames;
-
-    // Set of all signature names occuring in some operations effects
-    FlatHashSet<int> _fluent_predicates;
-    
+ 
 public:
-    
-    FactAnalysis(HtnInstance& htn) : _htn(htn), _traversal(htn), _init_state(_htn.getInitState()) {
+    NodeHashMap<int, FactFrame> _fact_frames;
+    FactAnalysisUtil _util;
+    USigSet _init_state;
+    int _rigid_predicates_matched = 0;
+    int _invalid_preconditions_found = 0;
+    int _invalid_subtasks_found = 0;
+    HtnInstance& _htn;
+
+    FactAnalysis(HtnInstance& htn) : _htn(htn), _traversal(htn), _init_state(htn.getInitState()), _util(htn, _fact_frames, _traversal) {
         resetReachability();
     }
+
 
     int getRigidPredicatesMatched() {
         return _rigid_predicates_matched;
@@ -109,23 +108,12 @@ public:
     bool isInitialized(const USignature& fact) {
         return _initialized_facts.count(fact);
     }
-    void normalizeSubstituteNodeDiff(const PFCNode& newNode, PFCNode& nodeToNormalize, const FlatHashSet<int>& argSet, const Substitution& s, 
-        std::function<Signature(const Signature& sig, FlatHashSet<int> argSet)> normalizeFunction, int depthLimit);
-
-    SigSet getPossibleFactChanges(const USignature& sig);
-    SigSet getPossibleFactChangesOld(const USignature& sig);
-    SigSet getPossibleFactChangesAlt(const USignature& sig);
-    SigSet getPossibleFactChangesTree(const USignature& sig);
-
-    std::vector<int> findCycle(int nodeToFind, std::vector<int>& adjacentNodes, std::map<int, std::vector<int>>& orderingOplist, std::vector<int>& traversedNodes);
 
     SigSet inferPreconditions(const USignature& op) {
-        return getFactFrame(op).preconditions;
+        return _util.getFactFrame(op).preconditions;
     }
 
     std::vector<FlatHashSet<int>> getReducedArgumentDomains(const HtnOp& op);
-
-    void findFluentPredicates(const std::vector<int>& orderedOpIds);
 
     inline bool isPseudoOrGroundFactReachable(const USignature& sig, bool negated) {
         if (!_htn.isFullyGround(sig)) return true;
@@ -152,16 +140,26 @@ public:
         return true;
     }
 
-    void computeFactFrames();
+    virtual void computeFactFrames();
 
-private:
-    FactFrame getFactFrame(const USignature& sig);
+    virtual SigSet getPossibleFactChanges(const USignature& sig);
 
-    bool dominates(const USignature& dominator, const USignature& dominee);
+    // SigSet getPossibleFactChanges(const USignature& sig) {
+    //     if (_fact_changes_cache.count(sig)) {
+    //         SigSet res = _fact_changes_cache[sig];
+    //         _fact_changes_cache.erase(sig);
+    //         return res;
+    //     } else {
+    //         _fact_changes_cache[sig] = computePossibleFactChanges(sig);
+    //         return _fact_changes_cache[sig];
+    //     }
+    // }
 
-    void testConditionalEffects(std::vector<int>& orderedOpIds);
-
-    SigSet filterFluentPredicates(const SigSet& unfiltered);
+    void substituteEffectsAndAdd(const SigSet& effects, Substitution& s, FlatHashMap<int, USigSet>& positiveEffects, FlatHashMap<int, USigSet>& negativeEffects);
+    bool checkPreconditionValidityRigid(SigSet& substitutedPreconditions);
+    bool checkPreconditionValidityFluent(SigSet& substitutedPreconditions, USigSet& foundEffectsPositive, USigSet& foundEffectsNegative);
+    USigSet removeDominated(const FlatHashMap<int, USigSet>& originalSignatures);
+    SigSet groundEffects(const FlatHashMap<int, USigSet>& negativeEffects, const FlatHashMap<int, USigSet>& positiveEffects);
 };
 
 #endif

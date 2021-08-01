@@ -71,6 +71,7 @@ void Parameters::setDefaults() {
     setParam("aar", "1"); // acknowledge action repetitions
     setParam("vp", "0"); // verify plan before printing it
     setParam("wf", "0"); // output formula to f.cnf
+    setParam("pfc", "base"); // pfc type, base, tree, condeffs
 }
 
 void Parameters::printUsage() {
@@ -117,6 +118,7 @@ void Parameters::printUsage() {
     Log::i(" -v=<verb>           Verbosity: 0=essential 1=warnings 2=information 3=verbose 4=debug\n");
     Log::i(" -vp=<0|1>           Verify plan (using pandaPIparser) before printing it\n");
     Log::i(" -wf=<0|1>           Write generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
+    Log::i(" -pfc=<base|condeffs|tree>\n");
     Log::i("\n");
     printParams();
     Log::setForcePrint(false);

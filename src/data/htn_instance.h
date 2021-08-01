@@ -212,6 +212,19 @@ public:
         return true;
     }
 
+    // like isUnifiable but not symmetric
+    bool dominates(const USignature& dominator, const USignature& dominee) {
+        for (size_t i = 0; i < dominator._args.size(); i++) {
+            int arg = dominator._args[i];
+            if (isVariable(arg)) {
+                if (isQConstant(dominee._args[i])) return false;
+            } else {
+                if (arg != dominee._args[i]) return false;
+            }
+        }
+        return true;
+    }
+
     std::vector<int> getFreeArgPositions(const std::vector<int>& sigArgs) {
         std::vector<int> argPositions;
         for (size_t i = 0; i < sigArgs.size(); i++) {

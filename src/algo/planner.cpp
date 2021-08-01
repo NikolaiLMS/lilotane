@@ -337,7 +337,7 @@ void Planner::createNextPositionFromLeft(Position& left) {
             bool repeatedAction = isAction && _htn.isActionRepetition(aSig._name_id);
             SigSet pfc_new;
             try {
-                pfc_new = _analysis.getPossibleFactChangesTree(aSig);
+                pfc_new = _analysis.getPossibleFactChanges(aSig);
             } catch(const std::invalid_argument& e) {
                 // Impossible direct effect: forbid action retroactively.
                 Log::w("Retroactively prune action %s because it has invalid subtask\n", TOSTR(aSig));
@@ -849,7 +849,7 @@ void Planner::initializeNextEffects() {
     for (const auto& set : ops) {
         for (const auto& aSig : *set) {
             try {
-                const SigSet pfc = _analysis.getPossibleFactChangesTree(aSig);
+                const SigSet pfc = _analysis.getPossibleFactChanges(aSig);
                 for (const Signature& eff : pfc) {
 
                     if (!_htn.hasQConstants(eff._usig)) {
