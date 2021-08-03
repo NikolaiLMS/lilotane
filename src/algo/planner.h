@@ -15,6 +15,7 @@
 #include "algo/retroactive_pruning.h"
 #include "algo/domination_resolver.h"
 #include "algo/plan_writer.h"
+#include "algo/pfc_factory.h"
 #include "sat/encoding.h"
 #include "optional"
 
@@ -29,7 +30,7 @@ private:
     Parameters& _params;
     HtnInstance& _htn;
 
-    FactAnalysis& _analysis;
+    std::unique_ptr<FactAnalysis> _analysis;
     Instantiator _instantiator;
     Encoding _enc;
     MinRES _minres;
@@ -58,10 +59,10 @@ private:
     size_t _num_instantiated_reductions = 0;
 
 public:
-    Planner(Parameters& params, HtnInstance& htn, FactAnalysis& analysis) : _params(params), _htn(htn),
-            _analysis(analysis), 
-            _instantiator(params, htn, _analysis), 
-            _enc(_params, _htn, _analysis, _layers, [this](){checkTermination();}), 
+    Planner(Parameters& params, HtnInstance& htn) : _params(params), _htn(htn),
+            _analysis(PFCFactory::create(params.getParam("pfc"), htn)), 
+            _instantiator(params, htn, *_analysis), 
+            _enc(_params, _htn, *_analysis, _layers, [this](){checkTermination();}), 
             _minres(_htn), 
             _pruning(_layers, _enc),
             _domination_resolver(_htn),
@@ -74,10 +75,10 @@ public:
         _htn.getGoalAction();
 
         // Compute fact frame for every (lifted) operation
-        _analysis.computeFactFrames();
+        _analysis->computeFactFrames();
 
         // Infer additional preconditions for reductions from their subtasks
-        PreconditionInference::infer(_htn, _analysis, PreconditionInference::MinePrecMode(_params.getIntParam("mp")));
+        PreconditionInference::infer(_htn, *_analysis, PreconditionInference::MinePrecMode(_params.getIntParam("mp")));
     }
     int findPlan();
     void improvePlan(int& iteration);

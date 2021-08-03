@@ -58,16 +58,13 @@ public:
 
             for (const auto& fact : conditionalEffect.second) {
                 //Log::d("adding conditionalEffect effects: %s\n", TOSTR(fact));
-                if (fact._usig._args.empty()) {
-                    result.insert(fact);
-                } else if (fact._negated) {
+                if (fact._negated) {
                     effectsNegative[fact._usig._name_id].insert(fact._usig);
                 } else {
                     effectsPositive[fact._usig._name_id].insert(fact._usig);
                 }
             }
         }
-        
         return groundEffects(effectsPositive, effectsNegative);
     }
 };

@@ -31,7 +31,7 @@ bool FactAnalysis::checkPreconditionValidityRigid(SigSet& substitutedPreconditio
         } else {
             preconditionsValid = false;
             for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(precondition._usig, _htn)) {
-                Log::d("Ground fact: %s\n", TOSTR(groundFact));
+                //Log::d("Ground fact: %s\n", TOSTR(groundFact));
                 if (_init_state.count(groundFact) == !precondition._negated) {
                     preconditionsValid = true;
                     break;
@@ -114,12 +114,14 @@ SigSet FactAnalysis::groundEffects(const FlatHashMap<int, USigSet>& positiveEffe
     SigSet groundEffects;
 
     for (const auto& positiveEffect: positiveEffectsToGround) {
-        for (const USignature& groundFact : ArgIterator::getFullInstantiation(positiveEffect, _htn)) {
+        if (positiveEffect._args.empty()) groundEffects.emplace(positiveEffect, false);
+        else for (const USignature& groundFact : ArgIterator::getFullInstantiation(positiveEffect, _htn)) {
             groundEffects.emplace(groundFact, false);
         }
     }
     for (const auto& negativeEffect: negativeEffectsToGround) {
-        for (const USignature& groundFact : ArgIterator::getFullInstantiation(negativeEffect, _htn)) {
+        if (negativeEffect._args.empty()) groundEffects.emplace(negativeEffect, true);
+        else for (const USignature& groundFact : ArgIterator::getFullInstantiation(negativeEffect, _htn)) {
             groundEffects.emplace(groundFact, true);
         }
     }

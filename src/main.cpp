@@ -15,9 +15,7 @@
 #include "util/timer.h"
 #include "util/signal_manager.h"
 #include "util/random.h"
-#include "algo/possible_fact_changes_base.h"
-#include "algo/possible_fact_changes_condeffs.h"
-#include "algo/possible_fact_changes_tree.h"
+
 #ifndef LILOTANE_VERSION
 #define LILOTANE_VERSION "(dbg)"
 #endif
@@ -55,16 +53,7 @@ void handleSignal(int signum) {
 
 void run(Parameters& params) {
     HtnInstance htn(params);
-    std::string pfcType = params.getParam("pfc");
-    FactAnalysis* analysis;
-    if (pfcType == "condeffs") {
-        analysis = new PFCCondEffs(htn);
-    } else if (pfcType == "tree") {
-        analysis = new PFCTree(htn);
-    } else {
-        analysis = new PFCBase(htn);
-    }
-    Planner planner(params, htn, *analysis);
+    Planner planner(params, htn);
     int result = planner.findPlan();
 
     if (result == 0) {
