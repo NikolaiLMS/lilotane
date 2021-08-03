@@ -157,6 +157,22 @@ struct SigSetEquals {
     }
 };
 
+struct SigSetPairHasher {
+    SigSetHasher _sig_set_hasher;
+    inline std::size_t operator()(const std::pair<SigSet, SigSet>& s) const {
+        size_t hash = _sig_set_hasher(s.first);
+        hash_combine_commutative(hash, _sig_set_hasher(s.second));
+        return hash;
+    }
+};
+
+struct SigSetPairEquals {
+    SigSetEquals _sig_set_equals;
+    bool operator()(const std::pair<SigSet, SigSet>& a, const std::pair<SigSet, SigSet>& b) const {
+        return _sig_set_equals(a.first, b.first) && _sig_set_equals(a.second, b.second);
+    }
+};
+
 namespace Sig {
     const static USignature NONE_SIG = USignature(-1, std::vector<int>());
     const static SigSet EMPTY_SIG_SET;

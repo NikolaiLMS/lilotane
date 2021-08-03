@@ -27,7 +27,7 @@ private:
     NodeHashMap<int, SigSet> _lifted_fact_changes;
     NodeHashMap<USignature, SigSet, USignatureHasher> _fact_changes_cache;
  
-public:
+protected:
     NodeHashMap<int, FactFrame> _fact_frames;
     FactAnalysisUtil _util;
     USigSet _init_state;
@@ -36,6 +36,7 @@ public:
     int _invalid_subtasks_found = 0;
     HtnInstance& _htn;
 
+public:
     FactAnalysis(HtnInstance& htn) : _htn(htn), _traversal(htn), _init_state(htn.getInitState()), _util(htn, _fact_frames, _traversal) {
         resetReachability();
     }

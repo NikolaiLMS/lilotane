@@ -65,6 +65,7 @@ public:
                     }
                     if (!subtaskValid) {
                         //Log::e("Found invalid subtask at depth %i\n", i);
+                        //Log::e("in getPFC for %s\n", TOSTR(sig));
                         _invalid_subtasks_found++;
                         if (i == 0) {
                             throw std::invalid_argument("getPFC: Operator has subtask with no valid children\n");

@@ -179,8 +179,9 @@ void FactAnalysisPreprocessing::computeCondEffs(std::vector<int>& orderedOpIds) 
                     _fact_frames[opId].sig = action.getSignature();
                     _fact_frames[opId].preconditions = action.getPreconditions();
                     _fact_frames[opId].effects = action.getEffects();
-                    SigSet filteredPrereqs = _util.filterFluentPredicates(action.getPreconditions(), _fluent_predicates);
-                    _fact_frames[opId].conditionalEffects[filteredPrereqs] = action.getEffects();
+                    NodeHashMap<std::pair<SigSet, SigSet>, SigSet, SigSetPairHasher, SigSetPairEquals> condEffs;
+                    condEffs[{SigSet(), SigSet()}] = action.getEffects();
+                    _fact_frames[opId].conditionalEffects.push_back(condEffs);
                     change = true;
                 } // else: fact frame already set
 
@@ -192,8 +193,9 @@ void FactAnalysisPreprocessing::computeCondEffs(std::vector<int>& orderedOpIds) 
                     _fact_frames[opId].sig = action.getSignature();
                     _fact_frames[opId].preconditions = action.getPreconditions();
                     _fact_frames[opId].effects = action.getEffects();
-                    SigSet filteredPrereqs = _util.filterFluentPredicates(action.getPreconditions(), _fluent_predicates);
-                    _fact_frames[opId].conditionalEffects[filteredPrereqs] = action.getEffects();
+                    NodeHashMap<std::pair<SigSet, SigSet>, SigSet, SigSetPairHasher, SigSetPairEquals> condEffs;
+                    condEffs[{SigSet(), SigSet()}] = action.getEffects();
+                    _fact_frames[opId].conditionalEffects.push_back(condEffs);
                     change = true;
                 } // else: fact frame already set
 
@@ -212,12 +214,14 @@ void FactAnalysisPreprocessing::computeCondEffs(std::vector<int>& orderedOpIds) 
                 size_t priorCondEffs = result.conditionalEffects.size();
                 size_t priorCondTotalEffs = 0;
                 for (auto& conditionalEffect : result.conditionalEffects) {
-                    priorCondTotalEffs += conditionalEffect.second.size();
+                    for (auto& [prereqs, effs]: conditionalEffect) {
+                        priorCondTotalEffs += effs.size();
+                    }
                 }
-
+                std::vector<NodeHashMap<std::pair<SigSet, SigSet>, SigSet, SigSetPairHasher, SigSetPairEquals>> newConditionalEffects;
                 // For each subtask of the reduction
                 for (size_t i = 0; i < reduction.getSubtasks().size(); i++) {
-
+                    NodeHashMap<std::pair<SigSet, SigSet>, SigSet, SigSetPairHasher, SigSetPairEquals> newSubtaskCondEff;
                     // Find all possible child operations for this subtask
                     std::vector<USignature> children;
                     _util.getTraversal().getPossibleChildren(reduction.getSubtasks(), i, children);
@@ -237,30 +241,52 @@ void FactAnalysisPreprocessing::computeCondEffs(std::vector<int>& orderedOpIds) 
 
                             // Pull conditionalEffects from child into reduction
                             for (auto& conditionalEffect : childFrame.conditionalEffects) {
-                                if (conditionalEffect.second.size() == 0) continue;
-                                // Only use fluent predicates as prerequisites
-                                SigSet reductionPreconditions = _util.filterFluentPredicates(result.preconditions, _fluent_predicates);
+                                for (auto& [preconditions, effects]: conditionalEffect) {
+                                    SigSet rigidPreconditionsNormalized;
+                                    SigSet fluentPreconditionsNormalized;
+                                    SigSet childRigidPreconditions = _util.filterFluentPredicates(childFrame.preconditions, _fluent_predicates);
+                                    SigSet childFluentPreconditions = _util.filterRigidPredicates(childFrame.preconditions, _fluent_predicates);
 
-                                // Add (already filtered) prerequisites from child
-                                for (auto& prereq : conditionalEffect.first) {
-                                    reductionPreconditions.insert(normalizeSignature(prereq, argSet));
+                                    // Add (already filtered) prerequisites from child
+                                    for (auto& prereq : preconditions.first) {
+                                        rigidPreconditionsNormalized.insert(normalizeSignature(prereq, argSet));
+                                    }
+                                    
+                                    // Add (already filtered) prerequisites from child
+                                    for (auto& prereq : childRigidPreconditions) {
+                                        rigidPreconditionsNormalized.insert(normalizeSignature(prereq, argSet));
+                                    }
+
+                                    for (auto& prereq : preconditions.second) {
+                                        fluentPreconditionsNormalized.insert(normalizeSignature(prereq, argSet));
+                                    }
+
+                                    for (auto& prereq : childFluentPreconditions) {
+                                        fluentPreconditionsNormalized.insert(normalizeSignature(prereq, argSet));
+                                    }
+
+                                    // Normalize effects
+                                    SigSet newEffects;
+                                    for (auto& eff : effects) {
+                                        newEffects.insert(normalizeSignature(eff, argSet));
+                                    }
+
+                                    // Extend (new?) conditionalEffect entry with newEffects
+                                    Sig::unite(newEffects, newSubtaskCondEff[{rigidPreconditionsNormalized, fluentPreconditionsNormalized}]);
                                 }
-
-                                // Normalize effects
-                                SigSet newEffects;
-                                for (auto& eff : conditionalEffect.second) {
-                                    newEffects.insert(normalizeSignature(eff, argSet));
-                                }
-
-                                // Extend (new?) conditionalEffect entry with newEffects
-                                Sig::unite(newEffects, result.conditionalEffects[reductionPreconditions]);
                             }
                         }
                     }
+
+                    newConditionalEffects.push_back(newSubtaskCondEff);
                 }
+                result.conditionalEffects = newConditionalEffects;
+
                 size_t newCondTotalEffs = 0;
-                for (auto& conditionalEffect : result.conditionalEffects) {
-                    newCondTotalEffs += conditionalEffect.second.size();
+                for (const auto& conditionalEffect : result.conditionalEffects) {
+                    for (const auto& [prereqs, effs]: conditionalEffect) {
+                        newCondTotalEffs += effs.size();
+                    }
                 }
                 // Check if the fact frame has been extended non-trivially
                 Log::d("Original: Prior size: %i, new size: %i\n", priorEffs, result.effects.size());

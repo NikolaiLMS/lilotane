@@ -101,7 +101,7 @@ struct PFCNode {
 };
 
 struct FactFrame {
-    NodeHashMap<SigSet, SigSet, SigSetHasher, SigSetEquals> conditionalEffects;
+    std::vector<NodeHashMap<std::pair<SigSet, SigSet>, SigSet, SigSetPairHasher, SigSetPairEquals>> conditionalEffects;
     USignature sig;
     SigSet preconditions;
     SigSet effects;
@@ -120,11 +120,17 @@ struct FactFrame {
             for (const auto& eff : offsetEffects[i]) 
                 f.offsetEffects[i].insert(eff.substitute(s));
         for (auto& conditionalEffect : conditionalEffects) {
-            SigSet newPrereqs;
-            SigSet newEffects;
-            for (const auto& prereq : conditionalEffect.first) newPrereqs.insert(prereq.substitute(s));
-            for (const auto& effect : conditionalEffect.second) newEffects.insert(effect.substitute(s));
-            Sig::unite(newEffects, f.conditionalEffects[newPrereqs]);
+            NodeHashMap<std::pair<SigSet, SigSet>, SigSet, SigSetPairHasher, SigSetPairEquals> newHashMap;
+            for (const auto& [preconditions, effects]: conditionalEffect) {
+                SigSet newRigidPredicates;
+                SigSet newFluentPredicates;
+                SigSet newEffects;
+                for (const auto& rigidPredicate : preconditions.first) newRigidPredicates.insert(rigidPredicate.substitute(s));
+                for (const auto& fluentPredicate : preconditions.second) newFluentPredicates.insert(fluentPredicate.substitute(s));
+                for (const auto& effect : effects) newEffects.insert(effect.substitute(s));
+                Sig::unite(newEffects, newHashMap[{newRigidPredicates, newFluentPredicates}]);
+            }
+            f.conditionalEffects.push_back(newHashMap);
         }
         f.subtasks = subtasks;
         return f;
