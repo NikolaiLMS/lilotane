@@ -38,16 +38,11 @@ public:
                     for (const auto& child: *subtask) {
                         //Log::e("Checking child: %s\n", TOSTR(child.second.sig._name_id));
                         bool preconditionsValid = checkPreconditionValidityRigid(child.second.rigidPreconditions, s);
-                        // if (preconditionsValid) {
-                            // substitutedPreconditions = SigSet();
-                            // for (const auto& prereq: child.second.fluentPreconditions) {
-                            //     //Log::e("Unsubstituted prereq: %s\n", TOSTR(prereq));
-                            //     substitutedPreconditions.insert(prereq.substitute(s));
-                            // }
-                            // preconditionsValid = checkPreconditionValidityFluent(substitutedPreconditions, foundEffectsPositive, foundEffectsNegative);
-                        // }
                         if (preconditionsValid) {
-                            //substituteEffectsAndAdd(child.second.effects, s, effectsPositiveSubtask, effectsNegativeSubtask);
+                            preconditionsValid = checkPreconditionValidityFluent(child.second.fluentPreconditions, foundEffectsPositive, foundEffectsNegative, s);
+                        }
+                        if (preconditionsValid) {
+                            substituteEffectsAndAdd(child.second.effects, s, effectsPositiveSubtask, effectsNegativeSubtask);
                             subtaskValid = true;
                             if (child.second.numNodes == 1 || i+1 == MAX_DEPTH) {
                                 substituteEffectsAndAdd(child.second.effects, s, effectsPositive, effectsNegative);
@@ -65,25 +60,10 @@ public:
                         if (i == 0) {
                             throw std::invalid_argument("getPFC: Operator has subtask with no valid children\n");
                         }
-                    } //else {
-                    //     USigSet effectsToGround = removeDominated(effectsPositiveSubtask);
-                    //     USigSet groundEffects;
-                    //     for (const auto& positiveEffect: effectsToGround) {
-                    //         for (const USignature& groundFact : ArgIterator::getFullInstantiation(positiveEffect, _htn)) {
-                    //             groundEffects.emplace(groundFact);
-                    //         }
-                    //     }
-                    //     Sig::unite(foundEffectsPositive, groundEffects);
-
-                    //     effectsToGround = removeDominated(effectsNegativeSubtask);
-                    //     groundEffects = USigSet();
-                    //     for (const auto& negativeEffect: effectsToGround) {
-                    //         for (const USignature& groundFact : ArgIterator::getFullInstantiation(negativeEffect, _htn)) {
-                    //             groundEffects.emplace(groundFact);
-                    //         }
-                    //     }
-                    //     Sig::unite(foundEffectsNegative, groundEffects);
-                    // }
+                    } else {
+                        Sig::unite(groundEffectsQConst(effectsPositiveSubtask), foundEffectsPositive);
+                        Sig::unite(groundEffectsQConst(effectsNegativeSubtask), foundEffectsNegative);
+                    }
                 }
                 subtasks = newSubtasks;
             }

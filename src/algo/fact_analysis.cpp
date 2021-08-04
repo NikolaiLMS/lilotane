@@ -41,7 +41,7 @@ bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, S
         }
         if (!preconditionsValid) {
             //Log::e("Found invalid rigid precondition: %s\n", TOSTR(precondition));
-            _invalid_preconditions_found++;
+            _invalid_rigid_preconditions_found++;
             break;
         }
     }
@@ -55,7 +55,7 @@ bool FactAnalysis::checkPreconditionValidityFluent(const SigSet& preconditions, 
         //Log::d("checking precondition: %s\n", TOSTR(precondition));
         Signature substitutedPrecondition = precondition.substitute(s);
         if (_htn.isFullyGround(substitutedPrecondition._usig) && !_htn.hasQConstants(substitutedPrecondition._usig)) {
-            //Log::d("Found ground precondition without qconstants: %s\n", TOSTR(substitutedPrecondition));
+            Log::d("Found ground precondition without qconstants: %s\n", TOSTR(substitutedPrecondition));
             if (!isReachable(substitutedPrecondition)) {
                 if (substitutedPrecondition._negated) {
                     preconditionsValid = foundEffectsNegative.count(substitutedPrecondition._usig) || !foundEffectsPositive.count(substitutedPrecondition._usig);
@@ -79,8 +79,12 @@ bool FactAnalysis::checkPreconditionValidityFluent(const SigSet& preconditions, 
             }
         }
         if (!preconditionsValid) {
-            //Log::e("Found invalid rigid precondition: %s\n", TOSTR(precondition));
-            _invalid_preconditions_found++;
+            // Log::e("Found invalid fluent precondition: %s\n", TOSTR(substitutedPrecondition));
+            // Log::e("posFacts: %s\n", TOSTR(_pos_layer_facts));
+            // Log::e("negFacts: %s\n",  TOSTR(_neg_layer_facts));
+            // Log::e("foundPos: %s\n", TOSTR(foundEffectsPositive));
+            // Log::e("foundNeg: %s\n", TOSTR(foundEffectsNegative));
+            _invalid_fluent_preconditions_found++;
             break;
         }
     }
@@ -110,6 +114,43 @@ USigSet FactAnalysis::removeDominated(const FlatHashMap<int, USigSet>& originalS
     return reducedSignatures;
 }
 
+
+
+SigSet FactAnalysis::groundEffectsQConst(const FlatHashMap<int, USigSet>& positiveEffects, const FlatHashMap<int, USigSet>& negativeEffects) {
+    SigSet result = groundEffectsQConst(positiveEffects, false);
+    Sig::unite(groundEffectsQConst(negativeEffects, true), result);
+    return result;
+}
+
+SigSet FactAnalysis::groundEffectsQConst(const FlatHashMap<int, USigSet>& effects, bool negated) {
+    USigSet effectsToGround = removeDominated(effects);
+    SigSet result;
+
+    for (const auto& effect: effectsToGround) {
+        if (effect._args.empty()) result.emplace(effect, negated);
+        else for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(effect, _htn)) {
+            result.emplace(groundFact, negated);
+        }
+    }
+
+    return result;
+}
+
+USigSet FactAnalysis::groundEffectsQConst(const FlatHashMap<int, USigSet>& effects) {
+    USigSet effectsToGround = removeDominated(effects);
+    USigSet result;
+
+    for (const auto& effect: effectsToGround) {
+        //Log::e("Grounding effect: %s\n", TOSTR(effect));
+        if (effect._args.empty()) result.emplace(effect);
+        else for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(effect, _htn)) {
+            result.emplace(groundFact);
+        }
+    }
+
+    return result;
+}
+
 SigSet FactAnalysis::groundEffects(const FlatHashMap<int, USigSet>& positiveEffects, const FlatHashMap<int, USigSet>& negativeEffects) {
     SigSet result = groundEffects(positiveEffects, false);
     Sig::unite(groundEffects(negativeEffects, true), result);
@@ -124,6 +165,20 @@ SigSet FactAnalysis::groundEffects(const FlatHashMap<int, USigSet>& effects, boo
         if (effect._args.empty()) result.emplace(effect, negated);
         else for (const USignature& groundFact : ArgIterator::getFullInstantiation(effect, _htn)) {
             result.emplace(groundFact, negated);
+        }
+    }
+
+    return result;
+}
+
+USigSet FactAnalysis::groundEffects(const FlatHashMap<int, USigSet>& effects) {
+    USigSet effectsToGround = removeDominated(effects);
+    USigSet result;
+
+    for (const auto& effect: effectsToGround) {
+        if (effect._args.empty()) result.emplace(effect);
+        else for (const USignature& groundFact : ArgIterator::getFullInstantiation(effect, _htn)) {
+            result.emplace(groundFact);
         }
     }
 

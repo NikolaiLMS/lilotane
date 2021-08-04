@@ -14,8 +14,7 @@ class FactAnalysis {
 private:
     NetworkTraversal _traversal;
 
-    USigSet _pos_layer_facts;
-    USigSet _neg_layer_facts;
+
 
     USigSet _initialized_facts;
     USigSet _relevant_facts;
@@ -32,9 +31,12 @@ protected:
     FactAnalysisUtil _util;
     USigSet _init_state;
     int _rigid_predicates_matched = 0;
-    int _invalid_preconditions_found = 0;
+    int _invalid_rigid_preconditions_found = 0;
+    int _invalid_fluent_preconditions_found = 0;
     int _invalid_subtasks_found = 0;
     HtnInstance& _htn;
+    USigSet _pos_layer_facts;
+    USigSet _neg_layer_facts;
 
 public:
     FactAnalysis(HtnInstance& htn) : _htn(htn), _traversal(htn), _init_state(htn.getInitState()), _util(htn, _fact_frames, _traversal) {
@@ -46,8 +48,12 @@ public:
         return _rigid_predicates_matched;
     }
 
-    int getInvalidPreconditionsFound() {
-        return _invalid_preconditions_found;
+    int getInvalidRigidPreconditionsFound() {
+        return _invalid_rigid_preconditions_found;
+    }
+
+    int getInvalidFluentPreconditionsFound() {
+        return _invalid_fluent_preconditions_found;
     }
 
     int getInvalidSubtasksFound() {
@@ -161,6 +167,10 @@ public:
     USigSet removeDominated(const FlatHashMap<int, USigSet>& originalSignatures);
     SigSet groundEffects(const FlatHashMap<int, USigSet>& negativeEffects, const FlatHashMap<int, USigSet>& positiveEffects);
     SigSet groundEffects(const FlatHashMap<int, USigSet>& effects, bool negated);
+    USigSet groundEffects(const FlatHashMap<int, USigSet>& effects);
+    SigSet groundEffectsQConst(const FlatHashMap<int, USigSet>& negativeEffects, const FlatHashMap<int, USigSet>& positiveEffects);
+    SigSet groundEffectsQConst(const FlatHashMap<int, USigSet>& effects, bool negated);
+    USigSet groundEffectsQConst(const FlatHashMap<int, USigSet>& effects);
 };
 
 #endif
