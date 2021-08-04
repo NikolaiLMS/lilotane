@@ -18,9 +18,9 @@ public:
         //Log::e("getPossibleFactChanges for: %s\n", TOSTR(sig));
         FlatHashMap<int, USigSet> effectsPositive;
         FlatHashMap<int, USigSet> effectsNegative;
-        SigSet result;
         FactFrame& factFrame = _fact_frames.at(sig._name_id);
         Substitution s = Substitution(factFrame.sig._args, sig._args);
+
         int MAX_DEPTH = 1;
         if (factFrame.numNodes == 1) {
             substituteEffectsAndAdd(factFrame.effects, s, effectsPositive, effectsNegative);
@@ -37,12 +37,7 @@ public:
                     //Log::e("subtasksize: %i\n", (*subtask).size());
                     for (const auto& child: *subtask) {
                         //Log::e("Checking child: %s\n", TOSTR(child.second.sig._name_id));
-                        SigSet substitutedPreconditions;
-                        for (const auto& prereq: child.second.rigidPreconditions) {
-                            //Log::e("Unsubstituted prereq: %s\n", TOSTR(prereq));
-                            substitutedPreconditions.insert(prereq.substitute(s));
-                        }
-                        bool preconditionsValid = checkPreconditionValidityRigid(substitutedPreconditions);
+                        bool preconditionsValid = checkPreconditionValidityRigid(child.second.rigidPreconditions, s);
                         // if (preconditionsValid) {
                             // substitutedPreconditions = SigSet();
                             // for (const auto& prereq: child.second.fluentPreconditions) {

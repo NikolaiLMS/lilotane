@@ -58,6 +58,7 @@ public:
         _pos_layer_facts = _init_state;
         _neg_layer_facts.clear();
         _initialized_facts.clear();
+        _fact_changes_cache = NodeHashMap<USignature, SigSet, USignatureHasher>();
     }
 
     void addReachableFact(const Signature& fact) {
@@ -145,11 +146,9 @@ public:
 
     virtual SigSet getPossibleFactChanges(const USignature& sig);
 
-    // SigSet getPossibleFactChanges(const USignature& sig) {
+    // const SigSet& getPossibleFactChanges(const USignature& sig) {
     //     if (_fact_changes_cache.count(sig)) {
-    //         SigSet res = _fact_changes_cache[sig];
-    //         _fact_changes_cache.erase(sig);
-    //         return res;
+    //         return _fact_changes_cache[sig];
     //     } else {
     //         _fact_changes_cache[sig] = computePossibleFactChanges(sig);
     //         return _fact_changes_cache[sig];
@@ -157,10 +156,11 @@ public:
     // }
 
     void substituteEffectsAndAdd(const SigSet& effects, Substitution& s, FlatHashMap<int, USigSet>& positiveEffects, FlatHashMap<int, USigSet>& negativeEffects);
-    bool checkPreconditionValidityRigid(SigSet& substitutedPreconditions);
-    bool checkPreconditionValidityFluent(SigSet& substitutedPreconditions, USigSet& foundEffectsPositive, USigSet& foundEffectsNegative);
+    bool checkPreconditionValidityRigid(const SigSet& preconditions, Substitution& s);
+    bool checkPreconditionValidityFluent(const SigSet& preconditions, USigSet& foundEffectsPositive, USigSet& foundEffectsNegative, Substitution& s);
     USigSet removeDominated(const FlatHashMap<int, USigSet>& originalSignatures);
     SigSet groundEffects(const FlatHashMap<int, USigSet>& negativeEffects, const FlatHashMap<int, USigSet>& positiveEffects);
+    SigSet groundEffects(const FlatHashMap<int, USigSet>& effects, bool negated);
 };
 
 #endif
