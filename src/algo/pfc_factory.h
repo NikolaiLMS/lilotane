@@ -8,15 +8,15 @@
 
 class PFCFactory {
 public:
-    static std::unique_ptr<FactAnalysis> create(std::string pfcType, HtnInstance& htn) {
+    static std::unique_ptr<FactAnalysis> create(std::string pfcType, HtnInstance& htn, Parameters& params) {
         std::unique_ptr<FactAnalysis> factAnalysis = NULL;
         
         if (pfcType == "condeffs") {
-            factAnalysis = std::make_unique<PFCCondEffs>(htn);
+            factAnalysis = std::make_unique<PFCCondEffs>(htn, params);
         } else if (pfcType == "tree") {
-            factAnalysis = std::make_unique<PFCTree>(htn);
+            factAnalysis = std::make_unique<PFCTree>(htn, params);
         } else {
-            factAnalysis = std::make_unique<PFCBase>(htn);
+            factAnalysis = std::make_unique<PFCBase>(htn, params);
         }
 
         return factAnalysis;

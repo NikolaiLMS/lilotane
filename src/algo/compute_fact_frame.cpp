@@ -5,7 +5,6 @@
 #include "algo/topological_ordering.h"
 
 int DEPTH_LIMIT = 1;
-const int NODE_LIMIT = 100;
 
 void FactAnalysisPreprocessing::computeFactFramesBase() {
 
@@ -372,7 +371,7 @@ void FactAnalysisPreprocessing::extendPreconditions(std::vector<int>& orderedOpI
         }
     }
     avgBranchDegreeArithmetic = int(avgBranchDegreeArithmetic/numReductions);
-    DEPTH_LIMIT = std::max(int(std::log(NODE_LIMIT) / std::log(avgBranchDegreeArithmetic)), 1);
+    DEPTH_LIMIT = std::max(int(std::log(_num_nodes) / std::log(avgBranchDegreeArithmetic)), 1);
     Log::e("avgBranchDegreeArithmetic: %i\n", avgBranchDegreeArithmetic);
     Log::e("DEPTH_LIMIT: %i\n", DEPTH_LIMIT);
 }

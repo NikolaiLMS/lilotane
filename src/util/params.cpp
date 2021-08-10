@@ -72,6 +72,9 @@ void Parameters::setDefaults() {
     setParam("vp", "0"); // verify plan before printing it
     setParam("wf", "0"); // output formula to f.cnf
     setParam("pfc", "base"); // pfc type, base, tree, condeffs
+    setParam("pfcTreeDepth", "1"); // Max depth used in tree getPfc
+    setParam("pfcNumNodes", "100"); // numNodes param for tree preprocessing
+    setParam("pfcFluentPreconditions", "0"); // check fluent preconditions
 }
 
 void Parameters::printUsage() {
@@ -119,6 +122,9 @@ void Parameters::printUsage() {
     Log::i(" -vp=<0|1>           Verify plan (using pandaPIparser) before printing it\n");
     Log::i(" -wf=<0|1>           Write generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
     Log::i(" -pfc=<base|condeffs|tree>\n");
+    Log::i(" -pfcTreeDepth=<+int>\n");
+    Log::i(" -pfcNumNodes=<+int>\n");
+    Log::i(" -pfcFluentPreconditions=<0|1>\n");
     Log::i("\n");
     printParams();
     Log::setForcePrint(false);

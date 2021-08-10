@@ -60,7 +60,7 @@ private:
 
 public:
     Planner(Parameters& params, HtnInstance& htn) : _params(params), _htn(htn),
-            _analysis(PFCFactory::create(params.getParam("pfc"), htn)), 
+            _analysis(PFCFactory::create(params.getParam("pfc"), htn, params)), 
             _instantiator(params, htn, *_analysis), 
             _enc(_params, _htn, *_analysis, _layers, [this](){checkTermination();}), 
             _minres(_htn), 

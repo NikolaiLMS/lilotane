@@ -1,6 +1,7 @@
 #include "data/htn_instance.h"
 #include "algo/network_traversal.h"
 #include "algo/fact_analysis_util.h"
+#include "util/params.h"
 
 class FactAnalysisPreprocessing {
 
@@ -17,8 +18,10 @@ private:
         return newSig;
     };
     FlatHashSet<int> _fluent_predicates;
+    int _num_nodes;
 public:
-    FactAnalysisPreprocessing (HtnInstance& htn, NodeHashMap<int, FactFrame>& fact_frames, FactAnalysisUtil& util) : _htn(htn), _fact_frames(fact_frames), _util(util) {}
+    FactAnalysisPreprocessing (HtnInstance& htn, NodeHashMap<int, FactFrame>& fact_frames, FactAnalysisUtil& util, Parameters& params) : 
+        _htn(htn), _fact_frames(fact_frames), _util(util), _num_nodes(params.getIntParam("pfcNumNodes", 100)) {}
 
     void computeFactFramesBase();
 

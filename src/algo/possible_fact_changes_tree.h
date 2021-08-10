@@ -1,12 +1,15 @@
-
+#include "util/params.h"
 #include "algo/fact_analysis.h"
 #include "util/log.h"
 
 class PFCTree: public FactAnalysis {
 private:
     FactAnalysisPreprocessing _preprocessing;
+    bool _check_fluent_preconditions;
+    int _max_depth;
 public:
-    PFCTree(HtnInstance& htn): FactAnalysis(htn), _preprocessing(htn, _fact_frames, _util) {
+    PFCTree(HtnInstance& htn, Parameters& params): 
+        FactAnalysis(htn), _preprocessing(htn, _fact_frames, _util, params), _check_fluent_preconditions(bool(params.getIntParam("pfcFluentPreconditions", 0))), _max_depth(params.getIntParam("pfcTreeDepth", 1)) {
 
     }
 
@@ -21,12 +24,11 @@ public:
         FactFrame& factFrame = _fact_frames.at(sig._name_id);
         Substitution s = Substitution(factFrame.sig._args, sig._args);
 
-        int MAX_DEPTH = 1;
         if (factFrame.numNodes == 1) {
             substituteEffectsAndAdd(factFrame.effects, s, effectsPositive, effectsNegative);
         } else {
             std::vector<NodeHashMap<int, PFCNode>*> subtasks = factFrame.subtasks;
-            for (int i = 0; i < MAX_DEPTH; i++) {
+            for (int i = 0; i < _max_depth; i++) {
                 USigSet foundEffectsNegative;
                 USigSet foundEffectsPositive;
                 std::vector<NodeHashMap<int, PFCNode>*> newSubtasks;
@@ -38,13 +40,13 @@ public:
                     for (const auto& child: *subtask) {
                         //Log::e("Checking child: %s\n", TOSTR(child.second.sig._name_id));
                         bool preconditionsValid = checkPreconditionValidityRigid(child.second.rigidPreconditions, s);
-                        if (preconditionsValid) {
+                        if (preconditionsValid && _check_fluent_preconditions) {
                             preconditionsValid = checkPreconditionValidityFluent(child.second.fluentPreconditions, foundEffectsPositive, foundEffectsNegative, s);
                         }
                         if (preconditionsValid) {
                             substituteEffectsAndAdd(child.second.effects, s, effectsPositiveSubtask, effectsNegativeSubtask);
                             subtaskValid = true;
-                            if (child.second.numNodes == 1 || i+1 == MAX_DEPTH) {
+                            if (child.second.numNodes == 1 || i+1 == _max_depth) {
                                 substituteEffectsAndAdd(child.second.effects, s, effectsPositive, effectsNegative);
                             } else {
                                 for (const auto& subtask: child.second.subtasks) {

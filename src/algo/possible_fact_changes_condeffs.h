@@ -5,8 +5,10 @@
 class PFCCondEffs: public FactAnalysis {
 private:
     FactAnalysisPreprocessing _preprocessing;
+    bool _check_fluent_preconditions;
 public:
-    PFCCondEffs(HtnInstance& htn): FactAnalysis(htn), _preprocessing(htn, _fact_frames, _util) {
+    PFCCondEffs(HtnInstance& htn, Parameters& params): 
+        FactAnalysis(htn), _preprocessing(htn, _fact_frames, _util, params), _check_fluent_preconditions(bool(params.getIntParam("pfcFluentPreconditions", 0))) {
 
     }
 
