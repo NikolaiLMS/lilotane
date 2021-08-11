@@ -14,8 +14,6 @@ class FactAnalysis {
 private:
     NetworkTraversal _traversal;
 
-
-
     USigSet _initialized_facts;
     USigSet _relevant_facts;
 
@@ -152,14 +150,16 @@ public:
 
     virtual SigSet getPossibleFactChanges(const USignature& sig);
 
-    // const SigSet& getPossibleFactChanges(const USignature& sig) {
-    //     if (_fact_changes_cache.count(sig)) {
-    //         return _fact_changes_cache[sig];
-    //     } else {
-    //         _fact_changes_cache[sig] = computePossibleFactChanges(sig);
-    //         return _fact_changes_cache[sig];
-    //     }
-    // }
+    void deletePossibleFactChangesFromCache(const USignature& sig) {
+        if (_fact_changes_cache.count(sig)) _fact_changes_cache.erase(sig);
+    }
+
+    const SigSet& getPossibleFactChangesCache(const USignature& sig) {
+        if (!_fact_changes_cache.count(sig)) {
+            _fact_changes_cache[sig] = getPossibleFactChanges(sig);
+        }
+        return _fact_changes_cache[sig];
+    }
 
     void substituteEffectsAndAdd(const SigSet& effects, Substitution& s, FlatHashMap<int, USigSet>& positiveEffects, FlatHashMap<int, USigSet>& negativeEffects);
     bool checkPreconditionValidityRigid(const SigSet& preconditions, Substitution& s);

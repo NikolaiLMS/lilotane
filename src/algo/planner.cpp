@@ -335,9 +335,29 @@ void Planner::createNextPositionFromLeft(Position& left) {
         for (const auto& aSig : *set) {
 
             bool repeatedAction = isAction && _htn.isActionRepetition(aSig._name_id);
-            SigSet pfc_new;
             try {
-                pfc_new = _analysis->getPossibleFactChanges(aSig);
+                const SigSet& pfc_new = _analysis->getPossibleFactChangesCache(aSig);
+                for (const Signature& fact : pfc_new) {
+                    if (isAction && !addEffect(
+                            repeatedAction ? aSig.renamed(_htn.getActionNameFromRepetition(aSig._name_id)) : aSig, 
+                            fact, 
+                            repeatedAction ? EffectMode::DIRECT_NO_QFACT : EffectMode::DIRECT)) {
+                        
+                        // Impossible direct effect: forbid action retroactively.
+                        Log::w("Retroactively prune action %s due to impossible effect %s\n", TOSTR(aSig), TOSTR(fact));
+                        actionsToRemove.insert(aSig);
+
+                        // Also remove any virtualized actions corresponding to this action
+                        USignature repSig = aSig.renamed(_htn.getRepetitionNameOfAction(aSig._name_id));
+                        if (left.hasAction(repSig)) actionsToRemove.insert(repSig);
+                        
+                        break;
+                    }
+                    if (!isAction && !addEffect(aSig, fact, EffectMode::INDIRECT)) {
+                        // Impossible indirect effect: ignore.
+                    }
+                }
+                _analysis->deletePossibleFactChangesFromCache(aSig);
             } catch(const std::invalid_argument& e) {
                 // Impossible direct effect: forbid action retroactively.
                 Log::w("Retroactively prune action %s because it has invalid subtask\n", TOSTR(aSig));
@@ -347,26 +367,6 @@ void Planner::createNextPositionFromLeft(Position& left) {
                 USignature repSig = aSig.renamed(_htn.getRepetitionNameOfAction(aSig._name_id));
                 if (left.hasAction(repSig)) actionsToRemove.insert(repSig);
                 continue;
-            }
-            for (const Signature& fact : pfc_new) {
-                if (isAction && !addEffect(
-                        repeatedAction ? aSig.renamed(_htn.getActionNameFromRepetition(aSig._name_id)) : aSig, 
-                        fact, 
-                        repeatedAction ? EffectMode::DIRECT_NO_QFACT : EffectMode::DIRECT)) {
-                    
-                    // Impossible direct effect: forbid action retroactively.
-                    Log::w("Retroactively prune action %s due to impossible effect %s\n", TOSTR(aSig), TOSTR(fact));
-                    actionsToRemove.insert(aSig);
-
-                    // Also remove any virtualized actions corresponding to this action
-                    USignature repSig = aSig.renamed(_htn.getRepetitionNameOfAction(aSig._name_id));
-                    if (left.hasAction(repSig)) actionsToRemove.insert(repSig);
-                    
-                    break;
-                }
-                if (!isAction && !addEffect(aSig, fact, EffectMode::INDIRECT)) {
-                    // Impossible indirect effect: ignore.
-                }
             }
         }
         isAction = false;
@@ -849,7 +849,7 @@ void Planner::initializeNextEffects() {
     for (const auto& set : ops) {
         for (const auto& aSig : *set) {
             try {
-                const SigSet pfc = _analysis->getPossibleFactChanges(aSig);
+                const SigSet& pfc = _analysis->getPossibleFactChangesCache(aSig);
                 for (const Signature& eff : pfc) {
 
                     if (!_htn.hasQConstants(eff._usig)) {

@@ -3,7 +3,7 @@
 
 
 void FactAnalysis::computeFactFrames() {}
-SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig) {}
+void FactAnalysis::getPossibleFactChanges(const USignature& sig) {}
 
 void FactAnalysis::substituteEffectsAndAdd(const SigSet& effects, Substitution& s, FlatHashMap<int, USigSet>& positiveEffects,
      FlatHashMap<int, USigSet>& negativeEffects) {
