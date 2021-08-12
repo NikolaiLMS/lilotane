@@ -65,7 +65,7 @@ bool FactAnalysis::checkPreconditionValidityFluent(const SigSet& preconditions, 
             for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(substitutedPrecondition._usig, _htn)) {
                 //Log::e("groundFact: %s\n", TOSTR(groundFact));
                 if (substitutedPrecondition._negated) {
-                    preconditionsValid = (_neg_layer_facts.count(groundFact) || foundEffectsNegative.count(groundFact)) || !(_pos_layer_facts.count(substitutedPrecondition._usig) || foundEffectsPositive.count(substitutedPrecondition._usig));
+                    preconditionsValid = (_neg_layer_facts.count(groundFact) || foundEffectsNegative.count(groundFact)) || !(_pos_layer_facts.count(groundFact) || foundEffectsPositive.count(groundFact));
                 } else {
                     if (_pos_layer_facts.count(substitutedPrecondition._usig)) Log::e("Found groundfact%s in posFacts\n", TOSTR(groundFact));
                     preconditionsValid = (_pos_layer_facts.count(groundFact) || foundEffectsPositive.count(groundFact));
