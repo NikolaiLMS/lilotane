@@ -95,7 +95,7 @@ def compareBinaries(binaryPath: str, instancesPath: str, outputPath: str,  valid
     logger.debug(f"outputPath: {outputPath}")
     logger.debug(f"validatorPath: {validatorPath}")
     logger.debug(f"timeout: {timeout}")
-
+    logger.debug(f"additional_params: {additional_params}")
     not_finished_first = 0
     errored_first = 0
     finished_first = 0
