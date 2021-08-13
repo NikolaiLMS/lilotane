@@ -36,6 +36,8 @@ protected:
     USigSet _pos_layer_facts;
     USigSet _neg_layer_facts;
 
+    FlatHashMap<int, USigSet> _final_effects_positive;
+    FlatHashMap<int, USigSet> _final_effects_negative;
 public:
     FactAnalysis(HtnInstance& htn) : _htn(htn), _traversal(htn), _init_state(htn.getInitState()), _util(htn, _fact_frames, _traversal) {
         resetReachability();
@@ -82,6 +84,22 @@ public:
             return _neg_layer_facts.count(fact) || !_pos_layer_facts.count(fact);
         }
         return _pos_layer_facts.count(fact);
+    }
+
+    bool countPositive(std::vector<USigSet*>& effects, USignature usig) {
+        if (_pos_layer_facts.count(usig)) return true;
+        for (const auto& set: effects) {
+            if ((*set).count(usig)) return true;
+        }
+        return false;
+    }
+
+    bool countNegative(std::vector<USigSet*>& effects, USignature usig) {
+        if (_neg_layer_facts.count(usig)) return true;
+        for (const auto& set: effects) {
+            if ((*set).count(usig)) return true;
+        }
+        return false;
     }
 
     bool isInvariant(const Signature& fact) {
@@ -163,7 +181,8 @@ public:
 
     void substituteEffectsAndAdd(const SigSet& effects, Substitution& s, FlatHashMap<int, USigSet>& positiveEffects, FlatHashMap<int, USigSet>& negativeEffects);
     bool checkPreconditionValidityRigid(const SigSet& preconditions, Substitution& s);
-    bool checkPreconditionValidityFluent(const SigSet& preconditions, USigSet& foundEffectsPositive, USigSet& foundEffectsNegative, Substitution& s);
+    bool checkPreconditionValidityFluent(const SigSet& preconditions, std::vector<USigSet*>& foundEffectsPositive, 
+        std::vector<USigSet*>& foundEffectsNegative, Substitution& s);
     USigSet removeDominated(const FlatHashMap<int, USigSet>& originalSignatures);
     SigSet groundEffects(const FlatHashMap<int, USigSet>& negativeEffects, const FlatHashMap<int, USigSet>& positiveEffects);
     SigSet groundEffects(const FlatHashMap<int, USigSet>& effects, bool negated);
@@ -171,6 +190,7 @@ public:
     SigSet groundEffectsQConst(const FlatHashMap<int, USigSet>& negativeEffects, const FlatHashMap<int, USigSet>& positiveEffects);
     SigSet groundEffectsQConst(const FlatHashMap<int, USigSet>& effects, bool negated);
     USigSet groundEffectsQConst(const FlatHashMap<int, USigSet>& effects);
+    void groundEffectsQConstIntoTarget(const FlatHashMap<int, USigSet>& effects, USigSet* target);
 };
 
 #endif
