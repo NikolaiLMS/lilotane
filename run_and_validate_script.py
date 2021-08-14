@@ -182,6 +182,8 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
         for (result_path, domain_file_path, instance_file_path, job_id, file_id) in result_paths_by_domain[instancedir]:
             p = subprocess.Popen(f"ln -s {output_path}/runwatch_log/{job_id}/rw {result_path}", shell=True)
             p.wait()
+            instance_result = None
+            unfinished_instance_result = None
             if return_vals[job_id] != 0:
                 logger.warning(f"Execution return value != 0: log: {result_path}")
                 num_errored += 1
