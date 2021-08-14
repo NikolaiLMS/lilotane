@@ -150,7 +150,7 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
 
                 runwatch_commands += f"{num_job} {binaryPath} {domain_file_path} {instance_file_path} -co=0 {additional_params}\n"
                 
-                instance_result_paths.append((result_path, domain_file_path, instance_file_path, num_job))
+                instance_result_paths.append((result_path, domain_file_path, instance_file_path, num_job, file_id))
 
                 num_job += 1
     
@@ -179,7 +179,7 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
 
         instance_results = []
         unfinished_instance_results = []
-        for (result_path, domain_file_path, instance_file_path, job_id) in result_paths_by_domain[instancedir]:
+        for (result_path, domain_file_path, instance_file_path, job_id, file_id) in result_paths_by_domain[instancedir]:
             p = subprocess.Popen(f"ln -s {output_path}/runwatch_log/{job_id}/rw {result_path}", shell=True)
             p.wait()
             if return_vals[job_id] != 0:
