@@ -28,7 +28,7 @@ def validateSolution(solution_path: str, domain_file_path, instance_file_path, v
     cmd = f"{validatorPath} {domain_file_path} {instance_file_path} -verify {solution_path} | " + "sed 's/\x1B\[[0-9;]\{1,\}[A-Za-z]//g'"
     out = subprocess.check_output([cmd], shell=True).decode()
     return "Plan verification result: true" in out
-
+    
 def hasSolution(outputpath: str) -> bool:
     return not bool(os.system(f"grep -r 'Found a solution' {outputpath}"))
 
@@ -103,12 +103,11 @@ get_figure = {'depth': getLastIteration, 'num_clauses': getNumClauses, 'invalid_
   'invalid_fluent_preconditions': getInvalidFluentPreconditions, 'preprocessing_time': getTimePreprocessing, 'depth_limit': getDepthLimit,
   'time_needed': getRuntime, 'plan_length': getSolutionLength}
 
-def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validatorPath: str, timeout: int, additional_params: str, runwatch_path: str):
+def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validatorPath: str, timeout: int, additional_params: str):
     global get_figure
     global figures_all
     global figures_finished
     logger.debug(f"Parameters:")
-    logger.debug(f"runwatch_path: {runwatch_path}")
     logger.debug(f"BinaryPath: {binaryPath}")
     logger.debug(f"instancesPath: {instancesPath}")
     logger.debug(f"outputPath: {outputPath}")
@@ -122,17 +121,15 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
 
     results = {}
     unfinished_results = {}
-    result_paths_by_domain = {}
-    runwatch_commands = ""
 
     for instancedir in [dir for dir in os.listdir(instancesPath) if os.path.isdir(f"{instancesPath}/{dir}")]:
         domain_path = f"{instancesPath}/{instancedir}"
-        instance_result_paths = []
 
         instance_results = []
         unfinished_instance_results = []
-        num_job = 1
+        result_paths_by_domain = {}
         for file in os.listdir(domain_path):
+            domain_result_paths = []
             if not "domain" in file and file.endswith(".hddl"):
                 domain_file_path = f"{instancesPath}/{instancedir}/domain.hddl"
                 if not os.path.isfile(domain_file_path):
@@ -151,57 +148,39 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
 
                 result_path = result_dir + f"/{file}.log"
 
-                runwatch_commands += f"{num_job} {binaryPath} {domain_file_path} {instance_file_path} -co=0 {additional_params}\n"
-                
-                instance_result_paths.append((result_path, domain_file_path, instance_file_path, num_job))
+                first_execution_cmd = f"{binaryPath} {domain_file_path} {instance_file_path} -co=0 {additional_params} > {result_path}"
 
-                num_job += 1
-    
-        result_paths_by_domain[instancedir] = instance_result_paths
+                logger.debug(f"\n########Starting execution of instance {file} of domain {instancedir} ######")
+                p = subprocess.Popen(first_execution_cmd, shell=True, preexec_fn=os.setsid)
+                try:
+                    p.wait(timeout)
+                except subprocess.TimeoutExpired:
+                    os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+                    p.wait()
+                    time.sleep(2)
+                    logger.warning(f"Did not finish in {timeout} seconds, log: {result_path}")
+                    unfinished_instance_result = {'file_id': file_id}
+                    for figure_type in figures_all:
+                        unfinished_instance_result[figure_type] = get_figure[figure_type](result_path)
+                    num_unfinished += 1
+                else: 
+                    if not hasSolution(result_path):
+                        logger.warning(f"Found no solution but ended execution (errored?): log: {result_path}")
+                        num_errored += 1
+                    else:
+                        first_valid = validateSolution(result_path, domain_file_path, instance_file_path, validatorPath)
+                        if first_valid:
+                            num_finished += 1
+                            instance_result = {'file_id': file_id}
+                            for figure_type in figures_all + figures_finished:
+                                instance_result[figure_type] = get_figure[figure_type](result_path)
+                        else:
+                            num_invalid += 1
 
-    runwatch_commands_file = output_path + "/runwatch_commands.txt"
-
-    with open(runwatch_commands_file, "w") as f:
-        f.write(runwatch_commands)
-
-    runwatch_command = f"{runwatch_path} {runwatch_commands_file} {runwatch_params} -T {timeout} -d {output_path}/runwatch_log"
-    print(runwatch_command)
-    runwatch_out = subprocess.check_output([runwatch_command], shell=True).decode()
-
-    return_vals = {}
-
-    runwatch_out = runwatch_out.split("\n")
-    for line in runwatch_out:
-        if "RETVAL" in line:
-            return_vals[int(line.split(" ")[0])] = int(line.split(" ")[4])
-
-    for instancedir in [dir for dir in os.listdir(instancesPath) if os.path.isdir(f"{instancesPath}/{dir}")]:
-        for (result_path, domain_file_path, instance_file_path, job_id) in result_paths_by_domain[instancedir]:
-            p = subprocess.Popen(f"ln -s {output_path}/runwatch_log/{job_id}/rw {result_path}", shell=True)
-            p.wait()
-            if return_vals[job_id] != 0:
-                logger.warning(f"Execution return value != 0: log: {result_path}")
-                num_errored += 1
-            elif not hasSolution(result_path):
-                unfinished_instance_result = {'file_id': file_id}
-                for figure_type in figures_all:
-                    unfinished_instance_result[figure_type] = get_figure[figure_type](result_path)
-                num_unfinished += 1
-            else: 
-                num_finished += 1
-                first_valid = validateSolution(result_path, domain_file_path, instance_file_path, validatorPath)
-                if first_valid:
-                    instance_result = {'file_id': file_id}
-                    for figure_type in figures_all + figures_finished:
-                        instance_result[figure_type] = get_figure[figure_type](result_path)
-                else:
-                    num_invalid += 1
-
-            if instance_result:
-                instance_results.append(instance_result)
-            if unfinished_instance_result:
-                unfinished_instance_results.append(unfinished_instance_result)
-
+                if instance_result:
+                    instance_results.append(instance_result)
+                if unfinished_instance_result:
+                    unfinished_instance_results.append(unfinished_instance_result)
         if instance_results:
             results[instancedir] = instance_results
         if unfinished_instance_results:
@@ -255,7 +234,6 @@ if __name__ == "__main__":
     logging_handler_file.setLevel(logging.DEBUG)
     logger.addHandler(logging_handler_file)
 
-    Path(output_path + "/runwatch_log").mkdir()
 
     validator_path = convert_relative(sys.argv[5])
     
@@ -263,10 +241,6 @@ if __name__ == "__main__":
 
     additional_params = str(sys.argv[7])
 
-    runwatch_path = convert_relative(sys.argv[8])
-    
-    runwatch_params = str(sys.argv[9])
-
-    runAndCollect(binary, instance_path, output_path, validator_path, timeout, additional_params, runwatch_path)
+    runAndCollect(binary, instance_path, output_path, validator_path, timeout, additional_params)
 
 
