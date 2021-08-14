@@ -124,14 +124,14 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
     unfinished_results = {}
     result_paths_by_domain = {}
     runwatch_commands = ""
-
+    num_job = 1
+    
     for instancedir in [dir for dir in os.listdir(instancesPath) if os.path.isdir(f"{instancesPath}/{dir}")]:
         domain_path = f"{instancesPath}/{instancedir}"
         instance_result_paths = []
 
         instance_results = []
         unfinished_instance_results = []
-        num_job = 1
         for file in os.listdir(domain_path):
             if not "domain" in file and file.endswith(".hddl"):
                 domain_file_path = f"{instancesPath}/{instancedir}/domain.hddl"
