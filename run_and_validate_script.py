@@ -90,18 +90,38 @@ def getInvalidSubtasks(solution_path: str) -> int:
     return invalid_subtasks
     
 @catchProcessError
-def getLastIteration(solution_path: str) -> float:
+def getLastIteration(solution_path: str) -> int:
     last_iteration = int(subprocess.check_output([f"grep 'Iteration' {solution_path}"], shell=True).decode().split('\n')[-2].split(' ')[-1][:-1])
     logger.error(f"last_iteration: : {last_iteration}")
     return last_iteration
 
-figures_all = ['depth', 'num_clauses', 'invalid_subtasks', 'invalid_rigid_preconditions', 'invalid_fluent_preconditions', 'preprocessing_time', 'depth_limit']
+@catchProcessError
+def getNumEffectsReduction(solution_path: str) -> int:
+    num_effects_reduction = int(subprocess.check_output([f"grep 'number effects in reduction fact_frames' {solution_path} |" + " awk '{print $8}'"], shell=True).decode())
+    logger.error(f"num_effects_reduction: : {num_effects_reduction}")
+    return num_effects_reduction
+
+@catchProcessError
+def getNumEffectsErasedRel(solution_path: str) -> int:
+    num_effects_erased = int(subprocess.check_output([f"grep 'effects erased by reliable effects' {solution_path} |" + " awk '{print $8}'"], shell=True).decode())
+    logger.error(f"num_effects_erased: : {num_effects_erased}")
+    return num_effects_erased
+
+@catchProcessError
+def getNumMinedPreconditions(solution_path: str) -> int:
+    num_mined_preconditions = int(subprocess.check_output([f"grep 'new reduction preconditions' {solution_path} |" + " awk '{print $3}'"], shell=True).decode())
+    logger.error(f"num_mined_preconditions: : {num_mined_preconditions}")
+    return num_mined_preconditions
+
+figures_all = ['depth', 'num_clauses', 'invalid_subtasks', 'invalid_rigid_preconditions', 'invalid_fluent_preconditions', 'preprocessing_time', 
+    'depth_limit', 'num_effects_erased', 'num_mined_preconditions', 'num_effects_reduction']
 
 figures_finished = ['time_needed', 'plan_length']
 
 get_figure = {'depth': getLastIteration, 'num_clauses': getNumClauses, 'invalid_subtasks': getInvalidSubtasks, 'invalid_rigid_preconditions': getInvalidRigidPreconditions, 
   'invalid_fluent_preconditions': getInvalidFluentPreconditions, 'preprocessing_time': getTimePreprocessing, 'depth_limit': getDepthLimit,
-  'time_needed': getRuntime, 'plan_length': getSolutionLength}
+  'time_needed': getRuntime, 'plan_length': getSolutionLength, 'num_effects_erased': getNumEffectsErasedRel, 'num_mined_preconditions': getNumMinedPreconditions,
+  'num_effects_reduction': getNumEffectsReduction}
 
 def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validatorPath: str, timeout: int, additional_params: str, runwatch_path: str):
     global get_figure

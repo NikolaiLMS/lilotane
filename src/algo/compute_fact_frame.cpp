@@ -12,6 +12,10 @@ void FactAnalysisPreprocessing::computeFactFramesBase() {
 
     _fluent_predicates = findFluentPredicates(orderedOpIds);
 
+    if (_reliable_effect_pruning) {
+        fillFactFramesReliableEffects(orderedOpIds);
+    }
+
     fillFactFramesBase(orderedOpIds);
 
     extendPreconditions(orderedOpIds);
@@ -42,6 +46,10 @@ void FactAnalysisPreprocessing::computeFactFramesTree() {
     std::vector<int> orderedOpIds = calcOrderedOpList();
 
     _fluent_predicates = findFluentPredicates(orderedOpIds);
+
+    if (_reliable_effect_pruning) {
+        fillFactFramesReliableEffects(orderedOpIds);
+    }
 
     fillFactFramesBase(orderedOpIds);
 
@@ -96,13 +104,17 @@ void FactAnalysisPreprocessing::fillFactFramesAction(int& opId, int& aId, bool& 
         _fact_frames[opId].sig = action.getSignature();
         _fact_frames[opId].preconditions = action.getPreconditions();
         _fact_frames[opId].effects = action.getEffects();
+        _fact_frames[opId].reliableEffects = action.getEffects();
         change = true;
     } // else: fact frame already set
 }
 
 void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpIds) {
     bool change = true;
+    int numEffectsReductions;
     while (change) {
+        numEffectsReductions = 0;
+        _util.setNumEffectsErasedByReliableEffects(0);
         change = false;
         // Iterate over each (lifted) operation in reversed order
         for (int i = orderedOpIds.size()-1; i >= 0; i--) {
@@ -151,8 +163,103 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                         }
                     }
                 }
+                for (const auto& eff: result.reliableEffects) {
+                    Signature negatedCopy = eff;
+                    negatedCopy._negated = !eff._negated;
+                    if (!result.reliableEffects.count(negatedCopy) && result.effects.count(negatedCopy)) {
+                        result.effects.erase(negatedCopy);
+                        _util.incrementNumEffectsErasedByReliableEffects();
+                        Log::d("Removed effect %s from effects of reduction %s\n", TOSTR(negatedCopy), TOSTR(opId));
+                    }
+                }
 
+                numEffectsReductions += result.effects.size();
                 if (result.effects.size() > priorEffs) {
+                    change = true;
+                }
+            }
+        }
+    }
+    _util.setNumEffectsReductions(numEffectsReductions);
+    
+}
+
+void FactAnalysisPreprocessing::fillFactFramesReliableEffects(std::vector<int>& orderedOpIds) {
+    bool change = true;
+    while (change) {
+        change = false;
+        // Iterate over each (lifted) operation in reversed order
+        for (int i = orderedOpIds.size()-1; i >= 0; i--) {
+            int opId = orderedOpIds[i];
+            Log::d("FF %i : %s\n", i, TOSTR(opId));
+            if (_htn.isAction(opId) || _htn.isActionRepetition(opId)) {
+                // Action: Setting fact frame is trivial
+                int aId = opId;
+                if (_htn.isActionRepetition(opId)) aId = _htn.getActionNameFromRepetition(opId);
+                fillFactFramesAction(opId, aId, change);
+            } else if (_htn.isReductionPrimitivizable(opId)) {
+                // Primitivization of a reduction, i.e., essentially just an action
+                int aId = _htn.getReductionPrimitivizationName(opId);
+                fillFactFramesAction(opId, aId, change);
+            } else if (_htn.isReduction(opId)) {
+                // Reduction
+                const auto& reduction = _htn.getAnonymousReduction(opId);
+                FlatHashSet<int> argSet(reduction.getArguments().begin(), reduction.getArguments().end());
+
+                // Set up (new?) fact frame with the reduction's preconditions
+                FactFrame& result = _fact_frames[opId];
+
+                size_t priorReliableEffs = result.reliableEffects.size();
+                SigSet newReliableEffects;
+                // For each subtask of the reduction
+                for (size_t i = 0; i < reduction.getSubtasks().size(); i++) {
+
+                    // Find all possible child operations for this subtask
+                    std::vector<USignature> children;
+                    _util.getTraversal().getPossibleChildren(reduction.getSubtasks(), i, children);
+                    SigSet childrenEffectIntersection;
+                    
+                    bool firstChild = true;
+                    // For each such child operation
+                    for (const auto& child : children) {
+                        if (_fact_frames.count(child._name_id)) {
+                            // Retrieve child's fact frame
+                            FactFrame childFrame = _util.getFactFrame(child);
+                            SigSet childReliableEffects;
+                            for (auto& eff : childFrame.reliableEffects) {
+                                if (!hasUnboundArgs(eff, argSet)) childReliableEffects.insert(eff);
+                            }
+                            //Log::e("childReliableEffects: %s\n", TOSTR(childReliableEffects));
+                            if (firstChild) {
+                                firstChild = false;
+                                childrenEffectIntersection = childReliableEffects;
+                            } else {
+                                for (const auto& eff: childReliableEffects) {
+                                    if (!childrenEffectIntersection.count(eff)) {
+                                        childrenEffectIntersection.erase(eff);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    //Log::e("childrenEffectIntersection: %s\n", TOSTR(childrenEffectIntersection));
+                    if (i == 0) {
+                        newReliableEffects = childrenEffectIntersection;
+                    } else {
+                        for (const auto& eff: newReliableEffects) {
+                            Signature negatedCopy = eff;
+                            negatedCopy._negated = !eff._negated;
+                            if (!childrenEffectIntersection.count(negatedCopy)) {
+                                childrenEffectIntersection.insert(eff);
+                            }
+                        }
+                        newReliableEffects = childrenEffectIntersection;
+                    }
+                    //Log::e("newReliableEffects: %s\n", TOSTR(newReliableEffects));
+                }
+
+                result.reliableEffects = newReliableEffects;
+                if (result.reliableEffects.size() > priorReliableEffs) {
                     change = true;
                 }
             }

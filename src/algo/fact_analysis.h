@@ -60,6 +60,14 @@ public:
         return _invalid_subtasks_found;
     }
 
+    int getNumEffectsErasedByReliableEffects() {
+        return _util.getNumEffectsErasedByReliableEffects();
+    }
+
+   int getNumEffectsReductions() {
+        return _util.getNumEffectsReductions();
+    }
+
     void resetReachability() {
         _pos_layer_facts = _init_state;
         _neg_layer_facts.clear();

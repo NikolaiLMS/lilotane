@@ -17,11 +17,20 @@ private:
         }
         return newSig;
     };
+    std::function<bool(const Signature& sig, FlatHashSet<int> argSet)> hasUnboundArgs = [&](const Signature& sig, FlatHashSet<int> argSet) {
+        for (size_t j = 0; j < sig._usig._args.size(); j++) {
+            const int& arg = sig._usig._args[j];
+            if (!argSet.count(arg)) return true;
+        }
+        return false;
+    };
     FlatHashSet<int> _fluent_predicates;
     int _num_nodes;
+    bool _reliable_effect_pruning;
 public:
     FactAnalysisPreprocessing (HtnInstance& htn, NodeHashMap<int, FactFrame>& fact_frames, FactAnalysisUtil& util, Parameters& params) : 
-        _htn(htn), _fact_frames(fact_frames), _util(util), _num_nodes(params.getIntParam("pfcNumNodes", 100)) {}
+        _htn(htn), _fact_frames(fact_frames), _util(util), _num_nodes(params.getIntParam("pfcNumNodes", 100)), 
+        _reliable_effect_pruning(bool(params.getIntParam("pfcReliableEffects"))) {}
 
     void computeFactFramesBase();
 
@@ -40,6 +49,9 @@ private:
     void computeCondEffs(std::vector<int>& orderingOplist);
 
     void fillFactFramesBase(std::vector<int>& orderingOplist);
+
+    void fillFactFramesReliableEffects(std::vector<int>& orderedOpIds);
+    void removeFactFramesEffectsMadeImpossibleByReliableEffects(std::vector<int>& orderedOpIds);
 
     void extendPreconditions(std::vector<int>& orderingOplist);
 

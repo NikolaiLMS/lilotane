@@ -7,6 +7,8 @@ private:
     HtnInstance& _htn;
     NodeHashMap<int, FactFrame>& _fact_frames;
     NetworkTraversal& _traversal;
+    int _num_effects_erased_by_reliable_effects = 0;
+    int _num_effects_reductions = 0;
 
 public:
 
@@ -20,6 +22,26 @@ public:
     FactFrame getFactFrame(const USignature& sig) {
         const FactFrame& f = _fact_frames.at(sig._name_id);
         return f.substitute(Substitution(f.sig._args, sig._args));
+    }
+
+    void setNumEffectsReductions(int newNum) {
+        _num_effects_reductions = newNum;
+    }
+
+    int getNumEffectsReductions() {
+        return _num_effects_reductions;
+    }
+    
+    void setNumEffectsErasedByReliableEffects(int newNum) {
+        _num_effects_erased_by_reliable_effects = newNum;
+    }
+    
+    void incrementNumEffectsErasedByReliableEffects() {
+        _num_effects_erased_by_reliable_effects++;
+    }
+    
+    int getNumEffectsErasedByReliableEffects() {
+        return _num_effects_erased_by_reliable_effects;
     }
 
     SigSet filterFluentPredicates(const SigSet& unfiltered, FlatHashSet<int>& _fluent_predicates) {

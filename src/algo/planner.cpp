@@ -990,4 +990,6 @@ void Planner::printStatistics() {
     Log::i("# invalid rigid preconditions found in getPFC: %i\n", _analysis->getInvalidRigidPreconditionsFound());
     Log::i("# invalid fluent preconditions found in getPFC: %i\n", _analysis->getInvalidFluentPreconditionsFound());
     Log::i("# invalid subtasks found in getPFC: %i\n", _analysis->getInvalidSubtasksFound());
+    Log::i("# number effects in reduction fact_frames: %i\n", _analysis->getNumEffectsReductions());
+    Log::i("# effects erased by reliable effects: %i\n", _analysis->getNumEffectsErasedByReliableEffects());
 }
