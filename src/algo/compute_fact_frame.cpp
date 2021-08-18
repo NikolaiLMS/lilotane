@@ -17,6 +17,7 @@ void FactAnalysisPreprocessing::computeFactFramesBase() {
     extendPreconditions(orderedOpIds);
 
     // for (const auto& [id, ff] : _fact_frames) {
+    //     Log::d("FF %s effects: %s\n", TOSTR(id), TOSTR(ff.effects));
     //     Log::d("FF: %s\n", TOSTR(ff));
     // }
 }
@@ -49,6 +50,7 @@ void FactAnalysisPreprocessing::computeFactFramesTree() {
     fillPFCNodes(orderedOpIds);
 
     // for (const auto& [id, ff] : _fact_frames) {
+    //     Log::d("FF %s effects: %s\n", TOSTR(id), TOSTR(ff.effects));
     //     Log::d("FF: %s\n", TOSTR(ff));
     // }
 }

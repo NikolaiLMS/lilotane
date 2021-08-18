@@ -336,6 +336,7 @@ void Planner::createNextPositionFromLeft(Position& left) {
 
             bool repeatedAction = isAction && _htn.isActionRepetition(aSig._name_id);
             try {
+                //Log::e("createNextPositionFromLeft: gettingPFC %s@(%i)(%i)\n", TOSTR(aSig), _layer_idx, _pos);
                 const SigSet& pfc_new = _analysis->getPossibleFactChangesCache(aSig);
                 for (const Signature& fact : pfc_new) {
                     if (isAction && !addEffect(
@@ -842,13 +843,14 @@ std::optional<Reduction> Planner::createValidReduction(const USignature& sig, co
 
 void Planner::initializeNextEffects() {
     Position& newPos = (*_layers[_layer_idx])[_pos];
-    
+    USigSet opsToPrune;
     // For each possible operation effect:
     const USigSet* ops[2] = {&newPos.getActions(), &newPos.getReductions()};
     bool isAction = true;
     for (const auto& set : ops) {
         for (const auto& aSig : *set) {
             try {
+                //Log::e("initializeNextEffects: gettingPFC %s@(%i)(%i)\n", TOSTR(aSig), _layer_idx, _pos);
                 const SigSet& pfc = _analysis->getPossibleFactChangesCache(aSig);
                 for (const Signature& eff : pfc) {
 
@@ -864,10 +866,14 @@ void Planner::initializeNextEffects() {
                     }
                 }
             } catch(const std::invalid_argument& e) {
-                continue;
+                Log::w("Retroactively prune action %s because it has invalid subtask\n", TOSTR(aSig));
+                opsToPrune.insert(aSig);
             }
         }
         isAction = false;
+    }
+    for (const auto& opSig : opsToPrune) {
+        _pruning.prune(opSig, _layer_idx, _pos);
     }
 }
 

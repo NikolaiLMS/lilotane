@@ -30,6 +30,7 @@ public:
         } else {
             std::vector<USigSet*> foundEffectsPositive;
             std::vector<USigSet*> foundEffectsNegative;
+            int subtaskIdx = 0;
             for (const auto& subtask: factFrame.subtasks) {
                 if (!checkSubtaskDFS(subtask, foundEffectsPositive, foundEffectsNegative, _max_depth - 1, s)) {
                     _invalid_subtasks_found++;
@@ -39,8 +40,10 @@ public:
                     for (const auto pointer: foundEffectsNegative) {
                         free(pointer);
                     }
+                    //Log::e("subtask %i is not valid\n", subtaskIdx);
                     throw std::invalid_argument("getPFC: Operator has subtask with no valid children\n");
                 }
+                subtaskIdx++;
             }
             for (const auto pointer: foundEffectsPositive) {
                 free(pointer);
@@ -48,6 +51,7 @@ public:
             for (const auto pointer: foundEffectsNegative) {
                 free(pointer);
             }
+            //Log::e("PFC: reduction is valid\n");
             return groundEffects(_final_effects_positive, _final_effects_negative);
         }
     }
@@ -59,6 +63,7 @@ public:
         std::vector<USigSet*> foundEffectsNegativeCopy = foundEffectsNeg;
 
         for (const auto& [id, child]: *children) {
+            //Log::e("Checking child %s\n", TOSTR(child.sig.substitute(s)));
             bool childValid = false;
             std::vector<USigSet*> childEffectsPositive = foundEffectsPositiveCopy;
             std::vector<USigSet*> childEffectsNegative = foundEffectsNegativeCopy;
