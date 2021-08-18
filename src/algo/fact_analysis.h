@@ -183,6 +183,7 @@ public:
     bool checkPreconditionValidityRigid(const SigSet& preconditions, Substitution& s);
     bool checkPreconditionValidityFluent(const SigSet& preconditions, std::vector<USigSet*>& foundEffectsPositive, 
         std::vector<USigSet*>& foundEffectsNegative, Substitution& s);
+    bool checkPreconditionValidityFluent(const SigSet& preconditions, USigSet& foundEffectsPositive, USigSet& foundEffectsNegative, Substitution& s);
     USigSet removeDominated(const FlatHashMap<int, USigSet>& originalSignatures);
     SigSet groundEffects(const FlatHashMap<int, USigSet>& negativeEffects, const FlatHashMap<int, USigSet>& positiveEffects);
     SigSet groundEffects(const FlatHashMap<int, USigSet>& effects, bool negated);

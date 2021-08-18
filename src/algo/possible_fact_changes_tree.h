@@ -18,123 +18,58 @@ public:
     }
 
     SigSet getPossibleFactChanges(const USignature& sig) {
+        //Log::e("getPossibleFactChanges for: %s\n", TOSTR(sig));
         _final_effects_positive.clear();
         _final_effects_negative.clear();
-        //Log::e("getPossibleFactChanges for: %s\n", TOSTR(sig));
         FactFrame& factFrame = _fact_frames.at(sig._name_id);
         Substitution s = Substitution(factFrame.sig._args, sig._args);
 
         if (factFrame.numNodes == 1) {
             substituteEffectsAndAdd(factFrame.effects, s, _final_effects_positive, _final_effects_negative);
-            return groundEffects(_final_effects_positive, _final_effects_negative);
         } else {
-            std::vector<USigSet*> foundEffectsPositive;
-            std::vector<USigSet*> foundEffectsNegative;
-            int subtaskIdx = 0;
-            for (const auto& subtask: factFrame.subtasks) {
-                if (!checkSubtaskDFS(subtask, foundEffectsPositive, foundEffectsNegative, _max_depth - 1, s)) {
-                    _invalid_subtasks_found++;
-                    for (const auto pointer: foundEffectsPositive) {
-                        free(pointer);
-                    }
-                    for (const auto pointer: foundEffectsNegative) {
-                        free(pointer);
-                    }
-                    //Log::e("subtask %i is not valid\n", subtaskIdx);
-                    throw std::invalid_argument("getPFC: Operator has subtask with no valid children\n");
-                }
-                subtaskIdx++;
-            }
-            for (const auto pointer: foundEffectsPositive) {
-                free(pointer);
-            }
-            for (const auto pointer: foundEffectsNegative) {
-                free(pointer);
-            }
-            //Log::e("PFC: reduction is valid\n");
-            return groundEffects(_final_effects_positive, _final_effects_negative);
-        }
-    }
-
-    bool checkSubtaskDFS(NodeHashMap<int, PFCNode>* children, std::vector<USigSet*>& foundEffectsPos, std::vector<USigSet*>& foundEffectsNeg, 
-            int depth, Substitution& s) {
-        bool valid = false;
-        std::vector<USigSet*> foundEffectsPositiveCopy = foundEffectsPos;
-        std::vector<USigSet*> foundEffectsNegativeCopy = foundEffectsNeg;
-
-        for (const auto& [id, child]: *children) {
-            //Log::e("Checking child %s\n", TOSTR(child.sig.substitute(s)));
-            bool childValid = false;
-            std::vector<USigSet*> childEffectsPositive = foundEffectsPositiveCopy;
-            std::vector<USigSet*> childEffectsNegative = foundEffectsNegativeCopy;
-
-            bool preconditionsValid = checkPreconditionValidityRigid(child.rigidPreconditions, s);
-            if (preconditionsValid && _check_fluent_preconditions) {
-                preconditionsValid = checkPreconditionValidityFluent(child.fluentPreconditions, childEffectsPositive, childEffectsNegative, s);
-            }
-            if (preconditionsValid) {
-                childValid = true;
-                if (depth == 0 || child.numNodes == 1) {
-                    substituteEffectsAndAdd(child.effects, s, _final_effects_positive, _final_effects_negative);
-                    
-                    FlatHashMap<int, USigSet> liftedSubstitutedTempPositive;
-                    FlatHashMap<int, USigSet> liftedSubstitutedTempNegative;
-                    substituteEffectsAndAdd(child.effects, s, liftedSubstitutedTempPositive, liftedSubstitutedTempNegative);
-
-                    USigSet* newSigSetPositive = new USigSet;
-                    USigSet* newSigSetNegative = new USigSet;
-                    groundEffectsQConstIntoTarget(liftedSubstitutedTempPositive, newSigSetPositive);
-                    groundEffectsQConstIntoTarget(liftedSubstitutedTempNegative, newSigSetNegative);
-                    foundEffectsPos.push_back(newSigSetPositive);
-                    foundEffectsNeg.push_back(newSigSetNegative);
-                } else {
-                    for (const auto& subtask: child.subtasks) {
-                        if (!checkSubtaskDFS(subtask, childEffectsPositive, childEffectsNegative, depth - 1, s)) {
-                            childValid = false;
-                            break;
+            std::vector<NodeHashMap<int, PFCNode>*> subtasks = factFrame.subtasks;
+            for (int i = 0; i < _max_depth; i++) {
+                USigSet foundEffectsNegative;
+                USigSet foundEffectsPositive;
+                std::vector<NodeHashMap<int, PFCNode>*> newSubtasks;
+                for (const auto& subtask: subtasks) {
+                    FlatHashMap<int, USigSet> effectsPositiveSubtask;
+                    FlatHashMap<int, USigSet> effectsNegativeSubtask;
+                    bool subtaskValid = false;
+                    //Log::e("subtasksize: %i\n", (*subtask).size());
+                    for (const auto& child: *subtask) {
+                        //Log::e("Checking child: %s\n", TOSTR(child.second.sig._name_id));
+                        bool preconditionsValid = checkPreconditionValidityRigid(child.second.rigidPreconditions, s);
+                        if (preconditionsValid && _check_fluent_preconditions) {
+                            preconditionsValid = checkPreconditionValidityFluent(child.second.fluentPreconditions, foundEffectsPositive, foundEffectsNegative, s);
+                        }
+                        if (preconditionsValid) {
+                            substituteEffectsAndAdd(child.second.effects, s, effectsPositiveSubtask, effectsNegativeSubtask);
+                            subtaskValid = true;
+                            if (child.second.numNodes == 1 || i+1 == _max_depth) {
+                                substituteEffectsAndAdd(child.second.effects, s, _final_effects_positive, _final_effects_negative);
+                            } else {
+                                for (const auto& subtask: child.second.subtasks) {
+                                    newSubtasks.push_back(subtask);
+                                }
+                            }
                         }
                     }
-                }
-            }
-            if (childValid) {
-                valid = true;
-                if (childEffectsPositive.size() > foundEffectsPositiveCopy.size()) {
-                    if (foundEffectsPos.size() == foundEffectsPositiveCopy.size()) {
-                        foundEffectsPos.push_back(childEffectsPositive[foundEffectsPositiveCopy.size()]);
-                    }
-                    for (int i = foundEffectsPositiveCopy.size() + 1; i < childEffectsPositive.size(); i++) {
-                        Sig::unite(*(childEffectsPositive[i]), *(foundEffectsPos[foundEffectsPos.size()-1]));
-                        free(childEffectsPositive[i]);
-                    }
-                }
-                if (childEffectsNegative.size() > foundEffectsNegativeCopy.size()) {
-                    if (foundEffectsNeg.size() == foundEffectsNegativeCopy.size()) {
-                        foundEffectsNeg.push_back(childEffectsNegative[foundEffectsNegativeCopy.size()]);
-                    }
-                    for (int i = foundEffectsNegativeCopy.size() + 1; i < childEffectsNegative.size(); i++) {
-                        Sig::unite(*(childEffectsNegative[i]), *(foundEffectsNeg[foundEffectsNeg.size()-1]));
-                        free(childEffectsNegative[i]);
+                    if (!subtaskValid) {
+                        //Log::e("Found invalid subtask at depth %i\n", i);
+                        //Log::e("in getPFC for %s\n", TOSTR(sig));
+                        if (i == 0) {
+                            _invalid_subtasks_found++;
+                            throw std::invalid_argument("getPFC: Operator has subtask with no valid children\n");
+                        }
+                    } else {
+                        Sig::unite(groundEffectsQConst(effectsPositiveSubtask), foundEffectsPositive);
+                        Sig::unite(groundEffectsQConst(effectsNegativeSubtask), foundEffectsNegative);
                     }
                 }
-            } else {
-                for (int i = foundEffectsPositiveCopy.size(); i < childEffectsPositive.size(); i++) {
-                    free(childEffectsPositive[i]);
-                }
-                for (int i = foundEffectsNegativeCopy.size(); i < childEffectsNegative.size(); i++) {
-                    free(childEffectsNegative[i]);
-                }
+                subtasks = newSubtasks;
             }
         }
-        for (int i = foundEffectsPos.size()-1; i > 0 ; i--) {
-            Sig::unite(*foundEffectsPos[i], *foundEffectsPos[0]);
-            free(foundEffectsPos[i]);
-            foundEffectsPos.pop_back();
-        }
-        for (int i = foundEffectsNeg.size()-1; i > 0 ; i--) {
-            Sig::unite(*foundEffectsNeg[i], *foundEffectsNeg[0]);
-            free(foundEffectsNeg[i]);
-            foundEffectsNeg.pop_back();
-        }
-        return valid;
+        return groundEffects(_final_effects_positive, _final_effects_negative);
     }
 };
