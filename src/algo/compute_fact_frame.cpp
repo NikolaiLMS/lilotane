@@ -141,6 +141,7 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                                             reduction.getPreconditions().end());
                 result.offsetEffects.resize(reduction.getSubtasks().size());
                 size_t priorEffs = result.effects.size();
+                SigSet newReliableEffects;
 
                 // For each subtask of the reduction
                 for (size_t i = 0; i < reduction.getSubtasks().size(); i++) {
@@ -148,19 +149,64 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                     // Find all possible child operations for this subtask
                     std::vector<USignature> children;
                     _util.getTraversal().getPossibleChildren(reduction.getSubtasks(), i, children);
-                    
+                    SigSet childrenEffectIntersection;
+                    bool firstChild = true;
+
                     // For each such child operation
                     for (const auto& child : children) {
                         // Fact frame for this child already present?
                         if (_fact_frames.count(child._name_id)) {
                             // Retrieve child's fact frame
                             FactFrame childFrame = _util.getFactFrame(child);
+
+                            bool valid = true;
+                            for (auto& prec: childFrame.preconditions) {
+                                Signature negatedCopy = prec;
+                                negatedCopy._negated = !prec._negated;
+                                if (!newReliableEffects.count(prec) && newReliableEffects.count(negatedCopy)) {
+                                    valid = false;
+                                    Log::e("Found illegal child: %s in reduction %s\n", TOSTR(child), TOSTR(opId));
+                                    Log::e(", because of precondition %s and reliable effects %s\n", TOSTR(prec), TOSTR(newReliableEffects));
+                                    break;
+                                }
+                            }
+                            if (!valid) {
+                                continue;
+                            }
+
                             SigSet normalizedEffects;
                             for (auto& eff : childFrame.effects) normalizedEffects.insert(normalizeSignature(eff, argSet));
 
                             Sig::unite(normalizedEffects, result.effects);
                             Sig::unite(normalizedEffects, result.offsetEffects[i]);
+                            SigSet childReliableEffects;
+                            for (auto& eff : childFrame.reliableEffects) {
+                                if (!hasUnboundArgs(eff, argSet)) childReliableEffects.insert(eff);
+                            }
+                            //Log::e("childReliableEffects: %s\n", TOSTR(childReliableEffects));
+                            if (firstChild) {
+                                firstChild = false;
+                                childrenEffectIntersection = childReliableEffects;
+                            } else {
+                                for (const auto& eff: childReliableEffects) {
+                                    if (!childrenEffectIntersection.count(eff)) {
+                                        childrenEffectIntersection.erase(eff);
+                                    }
+                                }
+                            }
                         }
+                    }
+                    if (i == 0) {
+                        newReliableEffects = childrenEffectIntersection;
+                    } else {
+                        for (const auto& eff: newReliableEffects) {
+                            Signature negatedCopy = eff;
+                            negatedCopy._negated = !eff._negated;
+                            if (!childrenEffectIntersection.count(negatedCopy)) {
+                                childrenEffectIntersection.insert(eff);
+                            }
+                        }
+                        newReliableEffects = childrenEffectIntersection;
                     }
                 }
                 for (const auto& eff: result.reliableEffects) {
@@ -208,7 +254,8 @@ void FactAnalysisPreprocessing::fillFactFramesReliableEffects(std::vector<int>& 
 
                 // Set up (new?) fact frame with the reduction's preconditions
                 FactFrame& result = _fact_frames[opId];
-
+                result.preconditions.insert(reduction.getPreconditions().begin(), 
+                    reduction.getPreconditions().end());
                 size_t priorReliableEffs = result.reliableEffects.size();
                 SigSet newReliableEffects;
                 // For each subtask of the reduction
@@ -225,6 +272,20 @@ void FactAnalysisPreprocessing::fillFactFramesReliableEffects(std::vector<int>& 
                         if (_fact_frames.count(child._name_id)) {
                             // Retrieve child's fact frame
                             FactFrame childFrame = _util.getFactFrame(child);
+                            bool valid = true;
+                            for (auto& prec: childFrame.preconditions) {
+                                Signature negatedCopy = prec;
+                                negatedCopy._negated = !prec._negated;
+                                if (!newReliableEffects.count(prec) && newReliableEffects.count(negatedCopy)) {
+                                    valid = false;
+                                    Log::e("Found illegal child: %s in reduction %s\n", TOSTR(child), TOSTR(opId));
+                                    Log::e(", because of precondition %s and reliable effects %s\n", TOSTR(prec), TOSTR(newReliableEffects));
+                                    break;
+                                }
+                            }
+                            if (!valid) {
+                                continue;
+                            }
                             SigSet childReliableEffects;
                             for (auto& eff : childFrame.reliableEffects) {
                                 if (!hasUnboundArgs(eff, argSet)) childReliableEffects.insert(eff);
@@ -385,7 +446,6 @@ void FactAnalysisPreprocessing::computeCondEffs(std::vector<int>& orderedOpIds) 
                             }
                         }
                     }
-
                     newConditionalEffects.push_back(newSubtaskCondEff);
                 }
                 result.conditionalEffects = newConditionalEffects;
