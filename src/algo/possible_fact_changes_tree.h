@@ -29,8 +29,8 @@ public:
         } else {
             std::vector<NodeHashMap<int, PFCNode>*> subtasks = factFrame.subtasks;
             for (int i = 0; i < _max_depth; i++) {
-                USigSet foundEffectsNegative;
-                USigSet foundEffectsPositive;
+                FlatHashMap<int, USigSet> foundEffectsNegative;
+                FlatHashMap<int, USigSet> foundEffectsPositive;
                 std::vector<NodeHashMap<int, PFCNode>*> newSubtasks;
                 for (const auto& subtask: subtasks) {
                     FlatHashMap<int, USigSet> effectsPositiveSubtask;
@@ -38,7 +38,9 @@ public:
                     bool subtaskValid = false;
                     //Log::e("subtasksize: %i\n", (*subtask).size());
                     for (const auto& child: *subtask) {
-                        //Log::e("Checking child: %s\n", TOSTR(child.second.sig._name_id));
+                        // Log::e("Layer %i\n", i);
+                        // Log::e("Checking child: %s\n", TOSTR(child.second.sig));
+                        // Log::e("Checking child: %s\n", TOSTR(child.second.sig.substitute(s)));
                         bool preconditionsValid = checkPreconditionValidityRigid(child.second.rigidPreconditions, s);
                         if (preconditionsValid && _check_fluent_preconditions) {
                             preconditionsValid = checkPreconditionValidityFluent(child.second.fluentPreconditions, foundEffectsPositive, foundEffectsNegative, s);
@@ -63,8 +65,12 @@ public:
                             throw std::invalid_argument("getPFC: Operator has subtask with no valid children\n");
                         }
                     } else {
-                        Sig::unite(groundEffectsQConst(effectsPositiveSubtask), foundEffectsPositive);
-                        Sig::unite(groundEffectsQConst(effectsNegativeSubtask), foundEffectsNegative);
+                        for (const auto& [id, sigset]: effectsPositiveSubtask) {
+                            Sig::unite(sigset, foundEffectsPositive[id]);
+                        }
+                        for (const auto& [id, sigset]: effectsNegativeSubtask) {
+                            Sig::unite(sigset, foundEffectsNegative[id]);
+                        }
                     }
                 }
                 subtasks = newSubtasks;

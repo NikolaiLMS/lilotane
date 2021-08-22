@@ -94,7 +94,7 @@ public:
         return _pos_layer_facts.count(fact);
     }
 
-    bool countPositive(std::vector<USigSet*>& effects, USignature usig) {
+    bool countPositive(std::vector<USigSet*>& effects, USignature& usig) {
         if (_pos_layer_facts.count(usig)) return true;
         for (const auto& set: effects) {
             if ((*set).count(usig)) return true;
@@ -102,10 +102,52 @@ public:
         return false;
     }
 
-    bool countNegative(std::vector<USigSet*>& effects, USignature usig) {
+    bool countPositive(FlatHashMap<int, USigSet>& effects, USignature& usig) {
+        if (_htn.isFullyGround(usig) && !_htn.hasQConstants(usig)) return countPositiveGround(effects[usig._name_id], usig);
+        if (effects[usig._name_id].count(usig)) return true;
+        if (_pos_layer_facts.count(usig)) return true;
+        for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(usig, _htn)) {
+            if (countPositiveGround(effects[usig._name_id], groundFact)) return true;
+        }
+        return false;
+    }
+
+    bool countPositiveGround(USigSet& effects, const USignature& usig) {
+        if (_pos_layer_facts.count(usig)) return true;
+        if (effects.count(usig)) return true;
+        for (const auto& eff: effects) {
+            for (const USignature& groundFact : ArgIterator::getFullInstantiation(eff, _htn)) {
+                if (groundFact == usig) return true;
+            }
+        }
+        return false;
+    }
+    
+    bool countNegative(std::vector<USigSet*>& effects, USignature& usig) {
         if (_neg_layer_facts.count(usig)) return true;
         for (const auto& set: effects) {
             if ((*set).count(usig)) return true;
+        }
+        return false;
+    }
+
+    bool countNegative(FlatHashMap<int, USigSet>& effects, USignature& usig) {
+        if (_htn.isFullyGround(usig) && !_htn.hasQConstants(usig)) return countNegativeGround(effects[usig._name_id], usig);
+        if (effects[usig._name_id].count(usig)) return true;
+        if (_neg_layer_facts.count(usig)) return true;
+        for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(usig, _htn)) {
+            if (countNegativeGround(effects[usig._name_id], groundFact)) return true;
+        }
+        return false;
+    }
+
+    bool countNegativeGround(USigSet& effects, const USignature& usig) {
+        if (_neg_layer_facts.count(usig)) return true;
+        if (effects.count(usig)) return true;
+        for (const auto& eff: effects) {
+            for (const USignature& groundFact : ArgIterator::getFullInstantiation(eff, _htn)) {
+                if (groundFact == usig) return true;
+            }
         }
         return false;
     }
@@ -189,8 +231,8 @@ public:
 
     void substituteEffectsAndAdd(const SigSet& effects, Substitution& s, FlatHashMap<int, USigSet>& positiveEffects, FlatHashMap<int, USigSet>& negativeEffects);
     bool checkPreconditionValidityRigid(const SigSet& preconditions, Substitution& s);
-    bool checkPreconditionValidityFluent(const SigSet& preconditions, std::vector<USigSet*>& foundEffectsPositive, 
-        std::vector<USigSet*>& foundEffectsNegative, Substitution& s);
+    bool checkPreconditionValidityFluent(const SigSet& preconditions, FlatHashMap<int, USigSet>& foundEffectsPositive, 
+        FlatHashMap<int, USigSet>& foundEffectsNegative, Substitution& s);
     bool checkPreconditionValidityFluent(const SigSet& preconditions, USigSet& foundEffectsPositive, USigSet& foundEffectsNegative, Substitution& s);
     USigSet removeDominated(const FlatHashMap<int, USigSet>& originalSignatures);
     SigSet groundEffects(const FlatHashMap<int, USigSet>& negativeEffects, const FlatHashMap<int, USigSet>& positiveEffects);
