@@ -16,10 +16,10 @@ void FactAnalysisPreprocessing::computeFactFramesBase() {
 
     extendPreconditions(orderedOpIds);
 
-    // for (const auto& [id, ff] : _fact_frames) {
-    //     Log::d("FF %s effects: %s\n", TOSTR(id), TOSTR(ff.effects));
-    //     Log::d("FF: %s\n", TOSTR(ff));
-    // }
+    for (const auto& [id, ff] : _fact_frames) {
+        Log::d("FF %s effects: %s\n", TOSTR(ff.sig), TOSTR(ff.effects));
+        Log::d("FF: %s\n", TOSTR(ff));
+    }
 }
 
 void FactAnalysisPreprocessing::computeFactFramesCondEffs() {
@@ -104,7 +104,10 @@ void FactAnalysisPreprocessing::fillFactFramesAction(int& opId, int& aId, bool& 
 void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpIds) {
     bool change = true;
     int numEffectsReductions;
+    int run = 1;
     while (change) {
+        Log::e("Run number %i\n", run);
+        run++;
         numEffectsReductions = 0;
         _util.setNumEffectsErasedByReliableEffects(0);
         change = false;
@@ -207,17 +210,17 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                         }
                     }
                     Sig::unite(childrenEffectIntersection, newReliableEffects);
-                }
-                result.reliableEffects = newReliableEffects;
-                for (const auto& eff: result.reliableEffects) {
-                    Signature negatedCopy = eff;
-                    negatedCopy._negated = !eff._negated;
-                    if (result.effects.count(negatedCopy)) {
-                        result.effects.erase(negatedCopy);
-                        _util.incrementNumEffectsErasedByReliableEffects();
-                        Log::d("Removed effect %s from effects of reduction %s\n", TOSTR(negatedCopy), TOSTR(opId));
+                    for (const auto& eff: newReliableEffects) {
+                        Signature negatedCopy = eff;
+                        negatedCopy._negated = !eff._negated;
+                        if (result.effects.count(negatedCopy)) {
+                            result.effects.erase(negatedCopy);
+                            _util.incrementNumEffectsErasedByReliableEffects();
+                            Log::e("Removed effect %s from effects of reduction %s\n", TOSTR(negatedCopy), TOSTR(opId));
+                        }
                     }
                 }
+                result.reliableEffects = newReliableEffects;
 
                 numEffectsReductions += result.effects.size();
                 if (result.effects.size() != priorEffs or result.reliableEffects.size() != priorReliableEffs) {
