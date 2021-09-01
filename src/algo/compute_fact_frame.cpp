@@ -96,7 +96,7 @@ void FactAnalysisPreprocessing::fillFactFramesAction(int& opId, int& aId, bool& 
         _fact_frames[opId].sig = action.getSignature();
         _fact_frames[opId].preconditions = action.getPreconditions();
         _fact_frames[opId].effects = action.getEffects();
-        if (_reliable_effect_pruning) _fact_frames[opId].reliableEffects = action.getEffects();
+        if (_postcondition_pruning) _fact_frames[opId].postconditions = action.getEffects();
         change = true;
     } // else: fact frame already set
 }
@@ -109,7 +109,7 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
         Log::e("Run number %i\n", run);
         run++;
         numEffectsReductions = 0;
-        _util.setNumEffectsErasedByReliableEffects(0);
+        _util.setNumEffectsErasedByPostconditions(0);
         change = false;
         // Iterate over each (lifted) operation in reversed order
         for (int i = orderedOpIds.size()-1; i >= 0; i--) {
@@ -137,8 +137,8 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                                             reduction.getPreconditions().end());
                 result.offsetEffects.resize(reduction.getSubtasks().size());
                 size_t priorEffs = result.effects.size();
-                size_t priorReliableEffs = result.reliableEffects.size();
-                SigSet newReliableEffects;
+                size_t priorPostconditions = result.postconditions.size();
+                SigSet newPostconditions;
 
                 // For each subtask of the reduction
                 for (size_t i = 0; i < reduction.getSubtasks().size(); i++) {
@@ -160,15 +160,15 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
 
                             Sig::unite(normalizedEffects, result.effects);
                             Sig::unite(normalizedEffects, result.offsetEffects[i]);
-                            SigSet childReliableEffects;
-                            for (auto& eff : childFrame.reliableEffects) {
-                                if (!hasUnboundArgs(eff, argSet)) childReliableEffects.insert(eff);
+                            SigSet childPostconditions;
+                            for (auto& eff : childFrame.postconditions) {
+                                if (!hasUnboundArgs(eff, argSet)) childPostconditions.insert(eff);
                             }
                             if (firstChild) {
                                 firstChild = false;
-                                childrenEffectIntersection = childReliableEffects;
+                                childrenEffectIntersection = childPostconditions;
                             } else {
-                                for (const auto& eff: childReliableEffects) {
+                                for (const auto& eff: childPostconditions) {
                                     if (!childrenEffectIntersection.count(eff)) {
                                         childrenEffectIntersection.erase(eff);
                                     }
@@ -192,8 +192,8 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                             }
                             childrenEffectIntersection = childrenEffectIntersectionFiltered;
 
-                            SigSet newReliableEffectsFiltered;
-                            for (const auto& eff: newReliableEffects) {
+                            SigSet newPostconditionsFiltered;
+                            for (const auto& eff: newPostconditions) {
                                 bool valid = true;
                                 for (const auto& normEff: normalizedEffects) {
                                     if (eff._usig._name_id == normEff._usig._name_id &&
@@ -203,27 +203,27 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                                     }
                                 }
                                 if (valid) {
-                                    newReliableEffectsFiltered.insert(eff);
+                                    newPostconditionsFiltered.insert(eff);
                                 }
                             }
-                            newReliableEffects = newReliableEffectsFiltered;
+                            newPostconditions = newPostconditionsFiltered;
                         }
                     }
-                    Sig::unite(childrenEffectIntersection, newReliableEffects);
-                    for (const auto& eff: newReliableEffects) {
+                    Sig::unite(childrenEffectIntersection, newPostconditions);
+                    for (const auto& eff: newPostconditions) {
                         Signature negatedCopy = eff;
                         negatedCopy._negated = !eff._negated;
                         if (result.effects.count(negatedCopy)) {
                             result.effects.erase(negatedCopy);
-                            _util.incrementNumEffectsErasedByReliableEffects();
+                            _util.incrementNumEffectsErasedByPostconditions();
                             Log::e("Removed effect %s from effects of reduction %s\n", TOSTR(negatedCopy), TOSTR(opId));
                         }
                     }
                 }
-                result.reliableEffects = newReliableEffects;
+                result.postconditions = newPostconditions;
 
                 numEffectsReductions += result.effects.size();
-                if (result.effects.size() != priorEffs or result.reliableEffects.size() != priorReliableEffs) {
+                if (result.effects.size() != priorEffs or result.postconditions.size() != priorPostconditions) {
                     change = true;
                 }
             }

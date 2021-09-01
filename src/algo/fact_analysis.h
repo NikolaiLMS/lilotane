@@ -60,8 +60,8 @@ public:
         return _invalid_subtasks_found;
     }
 
-    int getNumEffectsErasedByReliableEffects() {
-        return _util.getNumEffectsErasedByReliableEffects();
+    int getNumEffectsErasedByPostconditions() {
+        return _util.getNumEffectsErasedByPostconditions();
     }
 
    int getNumEffectsReductions() {

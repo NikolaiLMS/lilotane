@@ -26,11 +26,11 @@ private:
     };
     FlatHashSet<int> _fluent_predicates;
     int _num_nodes;
-    bool _reliable_effect_pruning;
+    bool _postcondition_pruning;
 public:
     FactAnalysisPreprocessing (HtnInstance& htn, NodeHashMap<int, FactFrame>& fact_frames, FactAnalysisUtil& util, Parameters& params) : 
         _htn(htn), _fact_frames(fact_frames), _util(util), _num_nodes(params.getIntParam("pfcNumNodes", 100)), 
-        _reliable_effect_pruning(bool(params.getIntParam("pfcReliableEffects"))) {}
+        _postcondition_pruning(bool(params.getIntParam("pfcPostconditions"))) {}
 
     void computeFactFramesBase();
 

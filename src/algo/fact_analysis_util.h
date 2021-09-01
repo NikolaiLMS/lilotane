@@ -7,7 +7,7 @@ private:
     HtnInstance& _htn;
     NodeHashMap<int, FactFrame>& _fact_frames;
     NetworkTraversal& _traversal;
-    int _num_effects_erased_by_reliable_effects = 0;
+    int _num_effects_erased_by_postconditions = 0;
     int _num_effects_reductions = 0;
 
 public:
@@ -32,16 +32,16 @@ public:
         return _num_effects_reductions;
     }
     
-    void setNumEffectsErasedByReliableEffects(int newNum) {
-        _num_effects_erased_by_reliable_effects = newNum;
+    void setNumEffectsErasedByPostconditions(int newNum) {
+        _num_effects_erased_by_postconditions = newNum;
     }
     
-    void incrementNumEffectsErasedByReliableEffects() {
-        _num_effects_erased_by_reliable_effects++;
+    void incrementNumEffectsErasedByPostconditions() {
+        _num_effects_erased_by_postconditions++;
     }
     
-    int getNumEffectsErasedByReliableEffects() {
-        return _num_effects_erased_by_reliable_effects;
+    int getNumEffectsErasedByPostconditions() {
+        return _num_effects_erased_by_postconditions;
     }
 
     SigSet filterFluentPredicates(const SigSet& unfiltered, FlatHashSet<int>& _fluent_predicates) {

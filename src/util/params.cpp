@@ -75,7 +75,7 @@ void Parameters::setDefaults() {
     setParam("pfcTreeDepth", "1"); // Max depth used in tree getPfc
     setParam("pfcNumNodes", "100"); // numNodes param for tree preprocessing
     setParam("pfcFluentPreconditions", "0"); // check fluent preconditions
-    setParam("pfcReliableEffects", "0"); // check reliable effects and subsequently prune effects in fact_frame preprocessing
+    setParam("pfcPostconditions", "0"); // check reliable effects and subsequently prune effects in fact_frame preprocessing
 }
 
 void Parameters::printUsage() {
@@ -126,7 +126,7 @@ void Parameters::printUsage() {
     Log::i(" -pfcTreeDepth=<+int>\n");
     Log::i(" -pfcNumNodes=<+int>\n");
     Log::i(" -pfcFluentPreconditions=<0|1>\n");
-    Log::i(" -pfcReliableEffects=<0|1>\n");
+    Log::i(" -pfcPostconditions=<0|1>\n");
     Log::i("\n");
     printParams();
     Log::setForcePrint(false);
