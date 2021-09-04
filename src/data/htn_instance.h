@@ -216,7 +216,7 @@ public:
     bool dominates(const USignature& dominator, const USignature& dominee) {
         for (size_t i = 0; i < dominator._args.size(); i++) {
             int arg = dominator._args[i];
-            if (isVariable(arg)) {
+            if (arg == nameId("??_")) {
                 if (isQConstant(dominee._args[i])) return false;
             } else {
                 if (arg != dominee._args[i]) return false;

@@ -8,13 +8,15 @@
 
 struct PFCNode {
     USignature sig;
+    FlatHashSet<int> subtaskArgs;
     SigSet rigidPreconditions;
     SigSet fluentPreconditions;
     SigSet effects;
+    SigSet postconditions;
     std::vector<NodeHashMap<int, PFCNode>*> subtasks;
     int maxDepth = 0;
     int numNodes = 1;
-    
+
     PFCNode cutDepth(int depth) const {
         PFCNode cutNode;
         cutNode.sig = sig;
@@ -30,6 +32,9 @@ struct PFCNode {
                     (*cutSubtask)[id] = cutChild;
                     cutNode.maxDepth = cutNode.maxDepth >= cutChild.maxDepth+1 ? cutNode.maxDepth : cutChild.maxDepth+1;
                     cutNode.numNodes += cutChild.numNodes;
+                    for (const auto& arg: cutChild.subtaskArgs) {
+                        cutNode.subtaskArgs.insert(arg);
+                    }
                 }
                 cutNode.subtasks.push_back(cutSubtask);
             }
@@ -69,6 +74,16 @@ struct PFCNode {
 
     void substitute(const Substitution& s) {
         sig = sig.substitute(s);
+    
+        FlatHashSet<int> substitutedSubtaskArgs = subtaskArgs;
+        for (const auto& arg: subtaskArgs) {
+            auto it = s.find(arg);
+            if (it != s.end()) {
+                substitutedSubtaskArgs.erase(arg);
+                substitutedSubtaskArgs.insert(it->second);
+            }
+        }
+        subtaskArgs = substitutedSubtaskArgs;
 
         SigSet substitutedPreconditions;
         for (const auto& precond: rigidPreconditions) {
@@ -101,6 +116,7 @@ struct PFCNode {
 };
 
 struct FactFrame {
+    FlatHashSet<int> subtaskArgs;
     std::vector<NodeHashMap<std::pair<SigSet, SigSet>, SigSet, SigSetPairHasher, SigSetPairEquals>> conditionalEffects;
     USignature sig;
     SigSet preconditions;

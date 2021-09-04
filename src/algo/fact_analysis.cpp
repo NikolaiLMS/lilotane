@@ -12,6 +12,7 @@ void FactAnalysis::substituteEffectsAndAdd(const SigSet& effects, Substitution& 
         subtitutedEffects.insert(effect.substitute(s));
     }
     for (const auto& eff: subtitutedEffects) {
+        //Log::e("Adding effect %s\n", TOSTR(eff));
         if (eff._negated) {
             negativeEffects[eff._usig._name_id].insert(eff._usig);
         } else {
@@ -20,16 +21,26 @@ void FactAnalysis::substituteEffectsAndAdd(const SigSet& effects, Substitution& 
     }
 }
 
-bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, Substitution& s) {
+bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
+    FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache) {
     bool preconditionsValid = true;
     // Check if any precondition is rigid and not valid in the initState
     for (const auto& precondition : preconditions) {
-        //Log::d("checking precondition: %s\n", TOSTR(precondition));
         Signature substitutedPrecondition = precondition.substitute(s);
+        //Log::e("checking precondition: %s\n", TOSTR(substitutedPrecondition));
+        bool hasUnboundArg = false;
+        std::vector<int> freeArgPositions;
+        for (const auto& argPosition: _htn.getFreeArgPositions(substitutedPrecondition._usig._args)) {
+            if (substitutedPrecondition._usig._args[argPosition] != _htn.nameId("??_")) {
+                freeArgPositions.push_back(argPosition);
+            } else {
+                hasUnboundArg = true;
+            }
+        }
         if (_htn.isFullyGround(substitutedPrecondition._usig) && !_htn.hasQConstants(substitutedPrecondition._usig)) {
             //Log::d("Found ground precondition without qconstants: %s\n", TOSTR(substitutedPrecondition));
             preconditionsValid = !substitutedPrecondition._negated != !_init_state.count(substitutedPrecondition._usig);
-        } else {
+        } else if (_htn.isFullyGround(substitutedPrecondition._usig) || freeArgPositions.size() > 1 || hasUnboundArg || _htn.hasQConstants(substitutedPrecondition._usig) || substitutedPrecondition._negated) {
             preconditionsValid = false;
             for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(substitutedPrecondition._usig, _htn)) {
                 //Log::d("Ground fact: %s\n", TOSTR(groundFact));
@@ -38,33 +49,65 @@ bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, S
                     break;
                 }
             }
+        } else {
+            if (!rigid_predicate_cache.count(substitutedPrecondition._usig._name_id)) {
+                preconditionsValid = false;
+            } else {
+                Substitution tempSub = Substitution(std::vector<int>{substitutedPrecondition._usig._args[freeArgPositions[0]]}, std::vector<int>{_htn.nameId("??_")});
+                USignature copy = substitutedPrecondition._usig.substitute(tempSub);
+                if (!rigid_predicate_cache[substitutedPrecondition._usig._name_id].count(copy)) {
+                    preconditionsValid = false;
+                } else {
+                    preconditionsValid = true;
+                    if (preconditionsValid) {
+                        // Log::e("Found values for %s:\n", TOSTR(copy));
+                        // for (const auto& value: rigid_predicate_cache[substitutedPrecondition._usig._name_id][copy]) {
+                        //     Log::e("%s, ", _htn.toString(value).c_str());
+                        // }
+                        // Log::e("\n");
+                        if (rigid_predicate_cache[substitutedPrecondition._usig._name_id][copy].size() == 1) {
+                            s = s.concatenate(Substitution(
+                                std::vector<int>{substitutedPrecondition._usig._args[freeArgPositions[0]]}, 
+                                std::vector<int>{*rigid_predicate_cache[substitutedPrecondition._usig._name_id][copy].begin()}));
+                        } else {
+                            freeArgRestrictions[substitutedPrecondition._usig._args[freeArgPositions[0]]] = rigid_predicate_cache[substitutedPrecondition._usig._name_id][copy];
+                        }
+                    }
+                }
+            }
         }
         if (!preconditionsValid) {
-            //Log::e("Found invalid rigid precondition: %s\n", TOSTR(precondition));
+            //Log::e("Found invalid rigid precondition: %s\n", TOSTR(substitutedPrecondition));
             _invalid_rigid_preconditions_found++;
             break;
+        } else {
+            //Log::e("Found valid rigid precondition: %s\n", TOSTR(substitutedPrecondition));
         }
     }
     return preconditionsValid;
 }
 
 bool FactAnalysis::checkPreconditionValidityFluent(const SigSet& preconditions, FlatHashMap<int, USigSet>& foundEffectsPositive, 
-    FlatHashMap<int, USigSet>& foundEffectsNegative, Substitution& s) {
+    FlatHashMap<int, USigSet>& foundEffectsNegative, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
     bool preconditionsValid = true;
     for (const auto& precondition : preconditions) {
-        //Log::d("checking precondition: %s\n", TOSTR(precondition));
         Signature substitutedPrecondition = precondition.substitute(s);
+        //Log::e("checking precondition: %s\n", TOSTR(substitutedPrecondition));
         if (substitutedPrecondition._negated) {
-            preconditionsValid = countNegative(foundEffectsNegative, substitutedPrecondition._usig) || !countPositive(foundEffectsPositive, substitutedPrecondition._usig);
+            preconditionsValid = countNegative(foundEffectsNegative, substitutedPrecondition._usig, freeArgRestrictions) || !countPositive(foundEffectsPositive, substitutedPrecondition._usig, freeArgRestrictions);
         } else {
-            preconditionsValid = countPositive(foundEffectsPositive, substitutedPrecondition._usig);
+            preconditionsValid = countPositive(foundEffectsPositive, substitutedPrecondition._usig, freeArgRestrictions);
         }
         if (!preconditionsValid) {
-            // Log::e("Found invalid fluent precondition: %s\n", TOSTR(substitutedPrecondition));
-            // Log::e("posFacts: %s\n", TOSTR(_pos_layer_facts));
-            // Log::e("negFacts: %s\n",  TOSTR(_neg_layer_facts));
-            // Log::e("foundPos: %s\n", TOSTR(foundEffectsPositive));
-            // Log::e("foundNeg: %s\n", TOSTR(foundEffectsNegative));
+            //Log::e("Found invalid fluent precondition: %s\n", TOSTR(substitutedPrecondition));
+            //Log::e("posFacts: %s\n", TOSTR(_pos_layer_facts));
+            //Log::e("negFacts: %s\n",  TOSTR(_neg_layer_facts));
+            // for (const auto& [predicate, signatures]: foundEffectsPositive) {
+            //      Log::e("foundPos: %s\n", TOSTR(signatures));
+            // }
+            // for (const auto& [predicate, signatures]: foundEffectsPositive) {
+            //     Log::e("foundNeg: %s\n", TOSTR(signatures));
+            // }
             _invalid_fluent_preconditions_found++;
             break;
         }
@@ -91,6 +134,7 @@ USigSet FactAnalysis::removeDominated(const FlatHashMap<int, USigSet>& originalS
                 if (!dominatedSignatures.count(eff)) reducedSignatures.insert(eff);
             }
         }
+        //Log::e("Dominated signatures: %s\n", TOSTR(dominatedSignatures));
     }
     return reducedSignatures;
 }
@@ -144,23 +188,25 @@ USigSet FactAnalysis::groundEffectsQConst(const FlatHashMap<int, USigSet>& effec
     return result;
 }
 
-SigSet FactAnalysis::groundEffects(const FlatHashMap<int, USigSet>& positiveEffects, const FlatHashMap<int, USigSet>& negativeEffects) {
-    SigSet result = groundEffects(positiveEffects, false);
-    Sig::unite(groundEffects(negativeEffects, true), result);
+SigSet FactAnalysis::groundEffects(const FlatHashMap<int, USigSet>& positiveEffects, const FlatHashMap<int, USigSet>& negativeEffects,
+    FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
+    SigSet result = groundEffects(positiveEffects, false, freeArgRestrictions);
+    Sig::unite(groundEffects(negativeEffects, true, freeArgRestrictions), result);
     return result;
 }
 
-SigSet FactAnalysis::groundEffects(const FlatHashMap<int, USigSet>& effects, bool negated) {
+SigSet FactAnalysis::groundEffects(const FlatHashMap<int, USigSet>& effects, bool negated, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
     USigSet effectsToGround = removeDominated(effects);
     SigSet result;
 
     for (const auto& effect: effectsToGround) {
+        //Log::e("Grounding effect: %s\n", TOSTR(effect));
         if (effect._args.empty()) result.emplace(effect, negated);
-        else for (const USignature& groundFact : ArgIterator::getFullInstantiation(effect, _htn)) {
+        else for (const USignature& groundFact : ArgIterator::getFullInstantiation(effect, _htn, freeArgRestrictions)) {
+            //Log::e("groundFact: %s\n", TOSTR(groundFact));
             result.emplace(groundFact, negated);
         }
     }
-
     return result;
 }
 

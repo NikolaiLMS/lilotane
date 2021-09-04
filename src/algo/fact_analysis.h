@@ -99,24 +99,25 @@ public:
         for (const auto& set: effects) {
             if ((*set).count(usig)) return true;
         }
-        return false;
     }
 
-    bool countPositive(FlatHashMap<int, USigSet>& effects, USignature& usig) {
-        if (_htn.isFullyGround(usig) && !_htn.hasQConstants(usig)) return countPositiveGround(effects[usig._name_id], usig);
+    bool countPositive(FlatHashMap<int, USigSet>& effects, USignature& usig, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
+        if (_htn.isFullyGround(usig) && !_htn.hasQConstants(usig)) return countPositiveGround(effects[usig._name_id], usig, freeArgRestrictions);
         if (effects[usig._name_id].count(usig)) return true;
         if (_pos_layer_facts.count(usig)) return true;
-        for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(usig, _htn)) {
-            if (countPositiveGround(effects[usig._name_id], groundFact)) return true;
+        for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(usig, _htn, freeArgRestrictions)) {
+            //Log::e("groundFact: %s\n", TOSTR(groundFact));
+            if (countPositiveGround(effects[usig._name_id], groundFact, freeArgRestrictions)) return true;
         }
         return false;
     }
 
-    bool countPositiveGround(USigSet& effects, const USignature& usig) {
+    bool countPositiveGround(USigSet& effects, const USignature& usig, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
         if (_pos_layer_facts.count(usig)) return true;
         if (effects.count(usig)) return true;
         for (const auto& eff: effects) {
-            for (const USignature& groundFact : ArgIterator::getFullInstantiation(eff, _htn)) {
+            for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(eff, _htn, freeArgRestrictions)) {
+                //Log::e("groundFact internal: %s\n", TOSTR(groundFact));
                 if (groundFact == usig) return true;
             }
         }
@@ -131,21 +132,21 @@ public:
         return false;
     }
 
-    bool countNegative(FlatHashMap<int, USigSet>& effects, USignature& usig) {
-        if (_htn.isFullyGround(usig) && !_htn.hasQConstants(usig)) return countNegativeGround(effects[usig._name_id], usig);
+    bool countNegative(FlatHashMap<int, USigSet>& effects, USignature& usig, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
+        if (_htn.isFullyGround(usig) && !_htn.hasQConstants(usig)) return countNegativeGround(effects[usig._name_id], usig, freeArgRestrictions);
         if (effects[usig._name_id].count(usig)) return true;
         if (_neg_layer_facts.count(usig)) return true;
-        for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(usig, _htn)) {
-            if (countNegativeGround(effects[usig._name_id], groundFact)) return true;
+        for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(usig, _htn, freeArgRestrictions)) {
+            if (countNegativeGround(effects[usig._name_id], groundFact, freeArgRestrictions)) return true;
         }
         return false;
     }
 
-    bool countNegativeGround(USigSet& effects, const USignature& usig) {
+    bool countNegativeGround(USigSet& effects, const USignature& usig, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
         if (_neg_layer_facts.count(usig)) return true;
         if (effects.count(usig)) return true;
         for (const auto& eff: effects) {
-            for (const USignature& groundFact : ArgIterator::getFullInstantiation(eff, _htn)) {
+            for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(eff, _htn, freeArgRestrictions)) {
                 if (groundFact == usig) return true;
             }
         }
@@ -230,15 +231,16 @@ public:
     }
 
     void substituteEffectsAndAdd(const SigSet& effects, Substitution& s, FlatHashMap<int, USigSet>& positiveEffects, FlatHashMap<int, USigSet>& negativeEffects);
-    bool checkPreconditionValidityRigid(const SigSet& preconditions, Substitution& s);
+    bool checkPreconditionValidityRigid(const SigSet& preconditions, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
+        FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache);
     bool checkPreconditionValidityFluent(const SigSet& preconditions, FlatHashMap<int, USigSet>& foundEffectsPositive, 
-        FlatHashMap<int, USigSet>& foundEffectsNegative, Substitution& s);
+        FlatHashMap<int, USigSet>& foundEffectsNegative, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions);
     bool checkPreconditionValidityFluent(const SigSet& preconditions, USigSet& foundEffectsPositive, USigSet& foundEffectsNegative, Substitution& s);
     USigSet removeDominated(const FlatHashMap<int, USigSet>& originalSignatures);
-    SigSet groundEffects(const FlatHashMap<int, USigSet>& negativeEffects, const FlatHashMap<int, USigSet>& positiveEffects);
-    SigSet groundEffects(const FlatHashMap<int, USigSet>& effects, bool negated);
+    SigSet groundEffects(const FlatHashMap<int, USigSet>& positiveEffects, const FlatHashMap<int, USigSet>& negativeEffects, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions);
+    SigSet groundEffects(const FlatHashMap<int, USigSet>& effects, bool negated, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions);
     USigSet groundEffects(const FlatHashMap<int, USigSet>& effects);
-    SigSet groundEffectsQConst(const FlatHashMap<int, USigSet>& negativeEffects, const FlatHashMap<int, USigSet>& positiveEffects);
+    SigSet groundEffectsQConst(const FlatHashMap<int, USigSet>& positiveEffects, const FlatHashMap<int, USigSet>& negativeEffects);
     SigSet groundEffectsQConst(const FlatHashMap<int, USigSet>& effects, bool negated);
     USigSet groundEffectsQConst(const FlatHashMap<int, USigSet>& effects);
     void groundEffectsQConstIntoTarget(const FlatHashMap<int, USigSet>& effects, USigSet* target);

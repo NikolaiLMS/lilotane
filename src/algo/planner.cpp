@@ -530,7 +530,9 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
             // Remember that there is some (unspecified) support for this fact
             pos.touchFactSupport(fact);
         }
-        
+        // if (strcmp(TOSTR(fact._usig), "(empty l-2-0-0)") == 0) {
+        //     Log::e("operation %s caused effect %s\n", TOSTR(opSig), TOSTR(fact));
+        // }
         _analysis->addReachableFact(fact);
         return true;
     }

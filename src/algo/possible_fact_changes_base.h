@@ -6,7 +6,7 @@ class PFCBase: public FactAnalysis {
 private:
     FactAnalysisPreprocessing _preprocessing;
 public:
-    PFCBase(HtnInstance& htn, Parameters& params): FactAnalysis(htn), _preprocessing(htn, _fact_frames, _util, params) {
+    PFCBase(HtnInstance& htn, Parameters& params): FactAnalysis(htn), _preprocessing(htn, _fact_frames, _util, params, _init_state) {
 
     }
 

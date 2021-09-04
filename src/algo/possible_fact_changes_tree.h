@@ -9,7 +9,7 @@ private:
     int _max_depth;
 public:
     PFCTree(HtnInstance& htn, Parameters& params): 
-        FactAnalysis(htn), _preprocessing(htn, _fact_frames, _util, params), _check_fluent_preconditions(bool(params.getIntParam("pfcFluentPreconditions", 0))), _max_depth(params.getIntParam("pfcTreeDepth", 1)) {
+        FactAnalysis(htn), _preprocessing(htn, _fact_frames, _util, params, _init_state), _check_fluent_preconditions(bool(params.getIntParam("pfcFluentPreconditions", 0))), _max_depth(params.getIntParam("pfcTreeDepth", 1)) {
 
     }
 
@@ -23,7 +23,7 @@ public:
         _final_effects_negative.clear();
         FactFrame& factFrame = _fact_frames.at(sig._name_id);
         Substitution s = Substitution(factFrame.sig._args, sig._args);
-
+        FlatHashMap<int, FlatHashSet<int>> freeArgRestrictions;
         if (factFrame.numNodes == 1) {
             substituteEffectsAndAdd(factFrame.effects, s, _final_effects_positive, _final_effects_negative);
         } else {
@@ -41,9 +41,9 @@ public:
                         // Log::e("Layer %i\n", i);
                         // Log::e("Checking child: %s\n", TOSTR(child.second.sig));
                         // Log::e("Checking child: %s\n", TOSTR(child.second.sig.substitute(s)));
-                        bool preconditionsValid = checkPreconditionValidityRigid(child.second.rigidPreconditions, s);
+                        bool preconditionsValid = checkPreconditionValidityRigid(child.second.rigidPreconditions, s, freeArgRestrictions, _preprocessing.getRigidPredicateCache());
                         if (preconditionsValid && _check_fluent_preconditions) {
-                            preconditionsValid = checkPreconditionValidityFluent(child.second.fluentPreconditions, foundEffectsPositive, foundEffectsNegative, s);
+                            preconditionsValid = checkPreconditionValidityFluent(child.second.fluentPreconditions, foundEffectsPositive, foundEffectsNegative, s, freeArgRestrictions);
                         }
                         if (preconditionsValid) {
                             substituteEffectsAndAdd(child.second.effects, s, effectsPositiveSubtask, effectsNegativeSubtask);
@@ -76,6 +76,6 @@ public:
                 subtasks = newSubtasks;
             }
         }
-        return groundEffects(_final_effects_positive, _final_effects_negative);
+        return groundEffects(_final_effects_positive, _final_effects_negative, freeArgRestrictions);
     }
 };

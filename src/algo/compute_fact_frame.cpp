@@ -43,16 +43,27 @@ void FactAnalysisPreprocessing::computeFactFramesTree() {
 
     _fluent_predicates = findFluentPredicates(orderedOpIds);
 
+    fillRigidPredicateCache();
+
     fillFactFramesBase(orderedOpIds);
 
     extendPreconditions(orderedOpIds);
 
-    fillPFCNodes(orderedOpIds);
+    fillPFCNodesTopDownBFS(orderedOpIds);
 
     // for (const auto& [id, ff] : _fact_frames) {
-    //     Log::d("FF %s effects: %s\n", TOSTR(id), TOSTR(ff.effects));
-    //     Log::d("FF: %s\n", TOSTR(ff));
+    //     printFactFrameBFS(id);
     // }
+}
+
+void FactAnalysisPreprocessing::fillRigidPredicateCache() {
+    for (const auto& fact: _init_state) {
+        if (!_fluent_predicates.count(fact._name_id)) {
+            for (const auto& arg: fact._args) {
+                _rigid_predicate_cache[fact._name_id][fact.substitute(Substitution(std::vector<int>{arg}, std::vector<int>{_htn.nameId("??_")}))].insert(arg);
+            }
+        }
+    }
 }
 
 std::vector<int> FactAnalysisPreprocessing::calcOrderedOpList() {
@@ -106,7 +117,7 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
     int numEffectsReductions;
     int run = 1;
     while (change) {
-        Log::e("Run number %i\n", run);
+        //Log::e("Run number %i\n", run);
         run++;
         numEffectsReductions = 0;
         _util.setNumEffectsErasedByPostconditions(0);
@@ -379,6 +390,45 @@ void FactAnalysisPreprocessing::computeCondEffs(std::vector<int>& orderedOpIds) 
     }
 }
 
+void FactAnalysisPreprocessing::printFactFrameBFS(int opId) {
+    FactFrame& factFrame = _fact_frames[opId];
+    Log::e("Root: %s\n", TOSTR(factFrame.sig));
+    Log::e("Root.numNodes: %i\n", factFrame.numNodes);
+
+    std::string subtaskArgsString = "Root subtaskArgs: ";
+    for (const auto& arg: factFrame.subtaskArgs) {
+        subtaskArgsString += TOSTR(arg) + std::string(", ");
+    }
+    subtaskArgsString += std::string("\n");
+    Log::e(subtaskArgsString.c_str());
+
+    std::vector<NodeHashMap<int, PFCNode>*> subtasks = factFrame.subtasks;
+    int depth = 1;
+    while (subtasks.size() > 0) {
+        Log::e("Depth %i:\n", depth);
+        std::vector<NodeHashMap<int, PFCNode>*> newSubtasks;
+        int subtaskIdx = 0;
+        for (const auto& subtask: subtasks) {
+            Log::e("Subtask %i:\n", subtaskIdx);
+            for (const auto& [id, child]: *subtask) {
+                Log::e("Child: %s\n", TOSTR(child.sig));
+                subtaskArgsString = "Child subtaskArgs: ";
+                for (const auto& arg: child.subtaskArgs) {
+                    subtaskArgsString += TOSTR(arg) + std::string(", ");
+                }
+                subtaskArgsString += std::string("\n");
+                Log::e(subtaskArgsString.c_str());
+                for (const auto& childSubtask: child.subtasks) {
+                    newSubtasks.push_back(childSubtask);
+                }
+            }
+            subtaskIdx++;
+        }
+        subtasks = newSubtasks;
+        depth++;
+    }
+}
+
 void FactAnalysisPreprocessing::extendPreconditions(std::vector<int>& orderedOpIds) {
     int avgBranchDegreeArithmetic = 0;
     int numReductions = 0;
@@ -445,7 +495,7 @@ void FactAnalysisPreprocessing::extendPreconditions(std::vector<int>& orderedOpI
         }
     }
     avgBranchDegreeArithmetic = int(avgBranchDegreeArithmetic/numReductions);
-    DEPTH_LIMIT = std::max(int(std::log(_num_nodes) / std::log(avgBranchDegreeArithmetic)), 1);
+    DEPTH_LIMIT = std::max(int(std::log(MAX_NODES) / std::log(avgBranchDegreeArithmetic)), 1);
     Log::e("avgBranchDegreeArithmetic: %i\n", avgBranchDegreeArithmetic);
     Log::e("DEPTH_LIMIT: %i\n", DEPTH_LIMIT);
 }
@@ -457,7 +507,7 @@ void FactAnalysisPreprocessing::fillPFCNodes(std::vector<int>& orderedOpIds) {
     while (change) {
         int avgNumNodes = 0;
         change = false;
-        //Log::e("Iteration #%i\n", iteration);
+        Log::e("Iteration #%i\n", iteration);
         iteration++;
         // Iterate over each (lifted) operation in reversed order
         for (int i = orderedOpIds.size()-1; i >= 0; i--) {
@@ -471,7 +521,6 @@ void FactAnalysisPreprocessing::fillPFCNodes(std::vector<int>& orderedOpIds) {
 
                 // Set up (new?) fact frame with the reduction's preconditions
                 FactFrame& result = _fact_frames[opId];
-
                 int newMaxDepth = 0;
                 int oldNumNodes = result.numNodes;
                 int newNumNodes = oldNumNodes;
@@ -502,7 +551,23 @@ void FactAnalysisPreprocessing::fillPFCNodes(std::vector<int>& orderedOpIds) {
                             initialNode.rigidPreconditions = _util.filterFluentPredicates(childFrame.preconditions, _fluent_predicates);
                             initialNode.fluentPreconditions = _util.filterRigidPredicates(childFrame.preconditions, _fluent_predicates);
                             initialNode.substitute(s);
-                            initialNode.normalize(argSet, normalizeSignature);
+                            std::vector<int> argsToSubstitute;
+                            std::vector<int> argSubstitutions;
+                            for (const auto& arg: initialNode.sig._args) {
+                                if (!argSet.count(arg)) {
+                                    if (result.subtaskArgs.count(arg)) {
+                                        int newArgument = _htn.nameId(std::string("?_customPFCVar_") + std::to_string(_num_custom_vars));
+                                        _num_custom_vars++;
+                                        argsToSubstitute.push_back(arg);
+                                        argSubstitutions.push_back(newArgument);
+                                        result.subtaskArgs.insert(newArgument);
+                                    } else {
+                                        result.subtaskArgs.insert(arg);
+                                    }
+                                }
+                            }
+                            initialNode.substitute(Substitution(argsToSubstitute, argSubstitutions));
+                            s = s.concatenate(Substitution(argsToSubstitute, argSubstitutions));
                             (*result.subtasks[i])[child._name_id] = initialNode;
                         } else {
                             newNumNodes -= (*result.subtasks[i])[child._name_id].numNodes;
@@ -513,14 +578,15 @@ void FactAnalysisPreprocessing::fillPFCNodes(std::vector<int>& orderedOpIds) {
                         childNode.sig = childFrame.sig;
                         childNode.effects = childFrame.effects;
                         childNode.rigidPreconditions = _util.filterFluentPredicates(childFrame.preconditions, _fluent_predicates);
-                        childNode.fluentPreconditions = _util.filterRigidPredicates(childFrame.preconditions, _fluent_predicates);                        
+                        childNode.fluentPreconditions = _util.filterRigidPredicates(childFrame.preconditions, _fluent_predicates);
                         childNode.subtasks = childFrame.subtasks;
                         childNode.maxDepth = childFrame.maxDepth;
                         childNode.numNodes = childFrame.numNodes;
+                        childNode.subtaskArgs = childFrame.subtaskArgs;
                         // Retrieve child's fact frame
                         if (childNode.numNodes > currentChildNode.numNodes) {
                             //Log::e("Normalize if\n");
-                            normalizeSubstituteNodeDiff(childNode, currentChildNode, argSet, s, normalizeSignature, DEPTH_LIMIT-1);
+                            normalizeSubstituteNodeDiff(childNode, currentChildNode, result.subtaskArgs, s, DEPTH_LIMIT-1);
                         }
                         newMaxDepth = std::max(newMaxDepth, currentChildNode.maxDepth+1);
                         newNumNodes += currentChildNode.numNodes;
@@ -537,6 +603,103 @@ void FactAnalysisPreprocessing::fillPFCNodes(std::vector<int>& orderedOpIds) {
             } else {
                 Log::d("FF %s : unmatched\n", TOSTR(opId));
             }
+        }
+        // for (const auto& [id, ff] : _fact_frames) {
+        //     printFactFrameBFS(id);
+        // }
+    }
+}
+
+void FactAnalysisPreprocessing::fillPFCNodesTopDownBFS(std::vector<int>& orderedOpIds) {
+    // Iterate over each (lifted) operation in reversed order
+    for (int i = orderedOpIds.size()-1; i >= 0; i--) {
+        int opId = orderedOpIds[i];
+        
+        if (_htn.isReduction(opId)) {
+            int num_custom_vars = 0;
+            int numNodes = 1;
+            // Set up (new?) fact frame with the reduction's preconditions
+            FactFrame& result = _fact_frames[opId];
+            PFCNode tempNode;
+            tempNode.sig = result.sig;
+            tempNode.effects = result.effects;
+            tempNode.rigidPreconditions = _util.filterFluentPredicates(result.preconditions, _fluent_predicates);
+            tempNode.fluentPreconditions = _util.filterRigidPredicates(result.preconditions, _fluent_predicates);
+            
+            std::vector<NodeHashMap<int, PFCNode>*> tempSubtasks;
+            tempSubtasks.push_back(new NodeHashMap<int, PFCNode>);
+            (*tempSubtasks[0])[opId] = tempNode;
+
+            std::vector<NodeHashMap<int, PFCNode>*> subtasks = tempSubtasks;
+            bool done = false;
+            while(subtasks.size() > 0 && numNodes < MAX_NODES) {
+                std::vector<NodeHashMap<int, PFCNode>*> nextSubtasks;
+                for (const auto& subtask: subtasks) {
+                    for (auto& [id, child]: *subtask) {
+                        if (_htn.isReduction(id)) {
+                            // Reduction
+                            const auto& subtaskReduction = _htn.getAnonymousReduction(id);
+                            FlatHashSet<int> argSet(subtaskReduction.getArguments().begin(), subtaskReduction.getArguments().end());
+
+                            int numChildrenSubtask = 0;
+                            for (size_t i = 0; i < subtaskReduction.getSubtasks().size(); i++) {
+                                std::vector<USignature> subtaskChildren;
+                                _util.getTraversal().getPossibleChildren(subtaskReduction.getSubtasks(), i, subtaskChildren);
+                                numChildrenSubtask += subtaskChildren.size();
+                            }
+                            if (numChildrenSubtask + numNodes > MAX_NODES) {
+                                nextSubtasks.resize(0);
+                                done = true;
+                                break;
+                            }
+                            for (size_t i = 0; i < subtaskReduction.getSubtasks().size(); i++) {
+                                NodeHashMap<int, PFCNode>* newSubtask = new NodeHashMap<int, PFCNode>;
+                                // Find all possible child operations for this subtask
+                                std::vector<USignature> subtaskChildren;
+                                _util.getTraversal().getPossibleChildren(subtaskReduction.getSubtasks(), i, subtaskChildren);
+                                
+                                // For each such child operation
+                                for (const auto& newChild : subtaskChildren) {
+                                    // Log::e("newChild: %s\n", TOSTR(child));
+                                    FactFrame& childFrame = _fact_frames.at(newChild._name_id);
+                                    Substitution s = Substitution(childFrame.sig._args, newChild._args);
+                                    PFCNode childNode;
+                                    childNode.sig = childFrame.sig;
+                                    childNode.effects = childFrame.effects;
+                                    childNode.rigidPreconditions = _util.filterFluentPredicates(childFrame.preconditions, _fluent_predicates);
+                                    childNode.fluentPreconditions = _util.filterRigidPredicates(childFrame.preconditions, _fluent_predicates);
+                                    childNode.postconditions = childFrame.postconditions;
+                                    childNode.substitute(s);
+                                    std::vector<int> argsToSubstitute;
+                                    std::vector<int> argSubstitutions;
+                                    for (const auto& arg: newChild._args) {
+                                        if (!argSet.count(arg)) {
+                                            int newArgument = _htn.nameId(std::string("?_customPFCVar_") + std::to_string(num_custom_vars));
+                                            num_custom_vars++;
+                                            argsToSubstitute.push_back(arg);
+                                            argSubstitutions.push_back(newArgument);
+                                        }
+                                    }
+                                    childNode.substitute(Substitution(argsToSubstitute, argSubstitutions));
+                                    childNode.substitute(Substitution(subtaskReduction.getSignature()._args, child.sig._args));
+                                    (*newSubtask)[newChild._name_id] = childNode;
+                                    numNodes++;
+                                }
+                                child.subtasks.push_back(newSubtask);
+                                nextSubtasks.push_back(newSubtask);
+                            }
+                        }
+                    }
+                    if (done) break;
+                }
+                subtasks = nextSubtasks;
+            }
+            result.subtasks = (*tempSubtasks[0])[opId].subtasks;
+            free(tempSubtasks[0]);
+            tempSubtasks[0] = NULL;
+            result.numNodes = numNodes;
+        } else {
+            Log::d("FF %s : unmatched\n", TOSTR(opId));
         }
     }
 }
@@ -574,8 +737,8 @@ FlatHashSet<int> FactAnalysisPreprocessing::findFluentPredicates(const std::vect
 }
 
 // recursively extends nodeToExtend with the new nodes in newNode until the depthLimit, the new nodes are substituted and normalized
-void FactAnalysisPreprocessing::normalizeSubstituteNodeDiff(const PFCNode& newNode, PFCNode& nodeToExtend, const FlatHashSet<int>& argSet, const Substitution& s, 
-        std::function<Signature(const Signature& sig, FlatHashSet<int> argSet)> normalizeFunction, int depthLimit) {
+void FactAnalysisPreprocessing::normalizeSubstituteNodeDiff(const PFCNode& newNode, PFCNode& nodeToExtend, 
+    FlatHashSet<int>& subtaskArgsRoot, const Substitution& s, int depthLimit) {
     if (depthLimit == 0) {
         return;
     }
@@ -592,13 +755,47 @@ void FactAnalysisPreprocessing::normalizeSubstituteNodeDiff(const PFCNode& newNo
             if (!(*nodeToExtend.subtasks[i]).count(id)) {
                 (*nodeToExtend.subtasks[i])[id] = child.cutDepth(depthLimit-1);
                 (*nodeToExtend.subtasks[i])[id].substitute(s);
-                (*nodeToExtend.subtasks[i])[id].normalize(argSet, normalizeFunction);
+                std::vector<int> argsToSubstitute;
+                std::vector<int> argSubstitutions;
+                for (const auto& arg: child.sig._args) {
+                    if (newNode.subtaskArgs.count(arg)) {
+                        if (subtaskArgsRoot.count(arg)) {
+                            int newArgument = _htn.nameId(std::string("?_customPFCVar_") + std::to_string(_num_custom_vars));
+                            _num_custom_vars++;
+                            argsToSubstitute.push_back(arg);
+                            argSubstitutions.push_back(newArgument);
+                            nodeToExtend.subtaskArgs.insert(newArgument);
+                            subtaskArgsRoot.insert(newArgument);
+                        } else {
+                            nodeToExtend.subtaskArgs.insert(arg);
+                            subtaskArgsRoot.insert(arg);
+                        }
+                    }
+                }
+
+                for (const auto& arg: (*nodeToExtend.subtasks[i])[id].subtaskArgs) {
+                    if (subtaskArgsRoot.count(arg)) {
+                        int newArgument = _htn.nameId(std::string("?_customPFCVar_") + std::to_string(_num_custom_vars));
+                        _num_custom_vars++;
+                        argsToSubstitute.push_back(arg);
+                        argSubstitutions.push_back(newArgument);
+                        nodeToExtend.subtaskArgs.insert(newArgument);
+                        subtaskArgsRoot.insert(newArgument);
+                    } else {
+                        nodeToExtend.subtaskArgs.insert(arg);
+                        subtaskArgsRoot.insert(arg);
+                    }
+                }
+                (*nodeToExtend.subtasks[i])[id].substitute(Substitution(argsToSubstitute, argSubstitutions));
             } else if (child.numNodes > (*nodeToExtend.subtasks[i])[id].numNodes) {
-                normalizeSubstituteNodeDiff(child, (*nodeToExtend.subtasks[i])[id], argSet, s, normalizeFunction, depthLimit-1);
+                normalizeSubstituteNodeDiff(child, (*nodeToExtend.subtasks[i])[id], subtaskArgsRoot, s, depthLimit-1);
             }
             PFCNode& extendedNode = (*nodeToExtend.subtasks[i])[id];
             maxDepth = extendedNode.maxDepth+1 > maxDepth ? extendedNode.maxDepth+1 : maxDepth;
             numNodes += extendedNode.numNodes;
+            for (const auto& arg: extendedNode.subtaskArgs) {
+                nodeToExtend.subtaskArgs.insert(arg);
+            }
         }
     }
     nodeToExtend.maxDepth = maxDepth;

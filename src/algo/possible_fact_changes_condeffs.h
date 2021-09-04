@@ -8,7 +8,7 @@ private:
     bool _check_fluent_preconditions;
 public:
     PFCCondEffs(HtnInstance& htn, Parameters& params): 
-        FactAnalysis(htn), _preprocessing(htn, _fact_frames, _util, params), _check_fluent_preconditions(bool(params.getIntParam("pfcFluentPreconditions", 0))) {
+        FactAnalysis(htn), _preprocessing(htn, _fact_frames, _util, params, _init_state), _check_fluent_preconditions(bool(params.getIntParam("pfcFluentPreconditions", 0))) {
 
     }
 
@@ -28,7 +28,7 @@ public:
             // Iterate through all conditionalEffects in factFrame
             for (const auto& conditionalEffect : conditionalEffectSubtask) {
                 //Log::d("checking conditionalEffect with prereqs: %s, and effects: %s\n", TOSTR(conditionalEffect.first), TOSTR(conditionalEffect.second));
-                bool reachable = checkPreconditionValidityRigid(conditionalEffect.first.first, s);
+                bool reachable = checkPreconditionValidityRigid(conditionalEffect.first.first, s, freeArgRestrictions, _preprocessing.getRigidPredicateCache());
 
                 // If any rigid, non-reachable prerequisite is found, don't add the conditionalEffects to the PFC,
                 if (reachable) {

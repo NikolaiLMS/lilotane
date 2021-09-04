@@ -85,7 +85,9 @@ public:
     }
 
     static ArgIterator getFullInstantiation(const USignature& sig, HtnInstance& _htn);
+    static ArgIterator getFullInstantiation(const USignature& sig, HtnInstance& _htn, FlatHashMap<int, FlatHashSet<int>>& restrictedArgs);
     static ArgIterator getFullInstantiationQConst(const USignature& sig, HtnInstance& _htn);
+    static ArgIterator getFullInstantiationQConst(const USignature& sig, HtnInstance& _htn, FlatHashMap<int, FlatHashSet<int>>& restrictedArgs);
 };
 
 #endif
