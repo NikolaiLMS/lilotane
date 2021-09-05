@@ -94,13 +94,6 @@ public:
         return _pos_layer_facts.count(fact);
     }
 
-    bool countPositive(std::vector<USigSet*>& effects, USignature& usig) {
-        if (_pos_layer_facts.count(usig)) return true;
-        for (const auto& set: effects) {
-            if ((*set).count(usig)) return true;
-        }
-    }
-
     bool countPositive(FlatHashMap<int, USigSet>& effects, USignature& usig, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
         if (_htn.isFullyGround(usig) && !_htn.hasQConstants(usig)) return countPositiveGround(effects[usig._name_id], usig, freeArgRestrictions);
         if (effects[usig._name_id].count(usig)) return true;
@@ -120,24 +113,6 @@ public:
                 //Log::e("groundFact internal: %s\n", TOSTR(groundFact));
                 if (groundFact == usig) return true;
             }
-        }
-        return false;
-    }
-    
-    bool countNegative(std::vector<USigSet*>& effects, USignature& usig) {
-        if (_neg_layer_facts.count(usig)) return true;
-        for (const auto& set: effects) {
-            if ((*set).count(usig)) return true;
-        }
-        return false;
-    }
-
-    bool countNegative(FlatHashMap<int, USigSet>& effects, USignature& usig, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
-        if (_htn.isFullyGround(usig) && !_htn.hasQConstants(usig)) return countNegativeGround(effects[usig._name_id], usig, freeArgRestrictions);
-        if (effects[usig._name_id].count(usig)) return true;
-        if (_neg_layer_facts.count(usig)) return true;
-        for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(usig, _htn, freeArgRestrictions)) {
-            if (countNegativeGround(effects[usig._name_id], groundFact, freeArgRestrictions)) return true;
         }
         return false;
     }

@@ -54,24 +54,28 @@ public:
         bool valid = false;
         FlatHashMap<int, USigSet> foundEffectsPositiveCopy = foundEffectsPos;
         FlatHashMap<int, USigSet> foundEffectsNegativeCopy = foundEffectsNeg;
+        FlatHashMap<int, FlatHashSet<int>> freeArgRestrictionsCopy = globalFreeArgRestrictions;
+        FlatHashMap<int, FlatHashSet<int>> newArgRestrictions;
 
+        bool firstChild = true;
         for (const auto& [id, child]: *children) {
             //Log::e("Checking child %s at depth %i\n", TOSTR(child.sig.substitute(s)), _max_depth - depth);
             bool childValid = false;
             FlatHashMap<int, USigSet> childEffectsPositive = foundEffectsPositiveCopy;
             FlatHashMap<int, USigSet> childEffectsNegative = foundEffectsNegativeCopy;
-
-            bool preconditionsValid = checkPreconditionValidityRigid(child.rigidPreconditions, s, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache());
+            FlatHashMap<int, FlatHashSet<int>> childFreeArgRestrictions = freeArgRestrictionsCopy;
+            Substitution copy = s;
+            bool preconditionsValid = checkPreconditionValidityRigid(child.rigidPreconditions, copy, childFreeArgRestrictions, _preprocessing.getRigidPredicateCache());
             if (preconditionsValid && _check_fluent_preconditions) {
-                preconditionsValid = checkPreconditionValidityFluent(child.fluentPreconditions, childEffectsPositive, childEffectsNegative, s, globalFreeArgRestrictions);
+                preconditionsValid = checkPreconditionValidityFluent(child.fluentPreconditions, childEffectsPositive, childEffectsNegative, copy, childFreeArgRestrictions);
             }
             if (preconditionsValid) {
                 childValid = true;
                 if (depth == 0 || child.subtasks.size() == 0) {
-                    substituteEffectsAndAdd(child.effects, s, foundEffectsPos, foundEffectsNeg);
+                    substituteEffectsAndAdd(child.effects, copy, foundEffectsPos, foundEffectsNeg);
                 } else {
                     for (const auto& subtask: child.subtasks) {
-                        if (!checkSubtaskDFS(subtask, childEffectsPositive, childEffectsNegative, depth - 1, s, globalFreeArgRestrictions)) {
+                        if (!checkSubtaskDFS(subtask, childEffectsPositive, childEffectsNegative, depth - 1, copy, childFreeArgRestrictions)) {
                             childValid = false;
                             break;
                         }
@@ -79,6 +83,28 @@ public:
                 }
             }
             if (childValid) {
+                if (firstChild) {
+                    firstChild = false;
+                    newArgRestrictions = childFreeArgRestrictions;
+                } else {
+                    for (const auto& [arg, constants]: childFreeArgRestrictions) {
+                        if (newArgRestrictions.count(arg)) {
+                            for (const auto& constant: constants) {
+                                newArgRestrictions[arg].insert(constant);
+                            }
+                        }
+                    }
+                    std::vector<int> toDelete;
+                    for (const auto& [arg, constants]: newArgRestrictions) {
+                        if (!childFreeArgRestrictions.count(arg)) {
+                            toDelete.push_back(arg);
+                        }
+                    }
+                    for (const auto& arg: toDelete) {
+                        newArgRestrictions.erase(arg);
+                    }
+                }
+
                 valid = true;
                 for (const auto& [id, sigset]: childEffectsPositive) {
                     Sig::unite(sigset, foundEffectsPos[id]);
@@ -87,6 +113,11 @@ public:
                     Sig::unite(sigset, foundEffectsNeg[id]);
                 }
             }
+        }
+        if (valid) {
+            for (const auto& [arg, constants]: newArgRestrictions) {
+                globalFreeArgRestrictions[arg] = constants;
+            }   
         }
         return valid;
     }

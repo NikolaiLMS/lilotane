@@ -27,7 +27,7 @@ bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, S
     // Check if any precondition is rigid and not valid in the initState
     for (const auto& precondition : preconditions) {
         Signature substitutedPrecondition = precondition.substitute(s);
-        //Log::e("checking precondition: %s\n", TOSTR(substitutedPrecondition));
+        //Log::e("checking rigid precondition: %s\n", TOSTR(substitutedPrecondition));
         bool hasUnboundArg = false;
         std::vector<int> freeArgPositions;
         for (const auto& argPosition: _htn.getFreeArgPositions(substitutedPrecondition._usig._args)) {
@@ -42,7 +42,7 @@ bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, S
             preconditionsValid = !substitutedPrecondition._negated != !_init_state.count(substitutedPrecondition._usig);
         } else if (_htn.isFullyGround(substitutedPrecondition._usig) || freeArgPositions.size() > 1 || hasUnboundArg || _htn.hasQConstants(substitutedPrecondition._usig) || substitutedPrecondition._negated) {
             preconditionsValid = false;
-            for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(substitutedPrecondition._usig, _htn)) {
+            for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(substitutedPrecondition._usig, _htn, freeArgRestrictions)) {
                 //Log::d("Ground fact: %s\n", TOSTR(groundFact));
                 if (_init_state.count(groundFact) == !substitutedPrecondition._negated) {
                     preconditionsValid = true;
@@ -50,28 +50,31 @@ bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, S
                 }
             }
         } else {
-            if (!rigid_predicate_cache.count(substitutedPrecondition._usig._name_id)) {
-                preconditionsValid = false;
-            } else {
+            preconditionsValid = false;
+            if (rigid_predicate_cache.count(substitutedPrecondition._usig._name_id)) {
                 Substitution tempSub = Substitution(std::vector<int>{substitutedPrecondition._usig._args[freeArgPositions[0]]}, std::vector<int>{_htn.nameId("??_")});
                 USignature copy = substitutedPrecondition._usig.substitute(tempSub);
-                if (!rigid_predicate_cache[substitutedPrecondition._usig._name_id].count(copy)) {
-                    preconditionsValid = false;
-                } else {
+                if (rigid_predicate_cache[substitutedPrecondition._usig._name_id].count(copy)) {
                     preconditionsValid = true;
-                    if (preconditionsValid) {
-                        // Log::e("Found values for %s:\n", TOSTR(copy));
-                        // for (const auto& value: rigid_predicate_cache[substitutedPrecondition._usig._name_id][copy]) {
-                        //     Log::e("%s, ", _htn.toString(value).c_str());
-                        // }
-                        // Log::e("\n");
-                        if (rigid_predicate_cache[substitutedPrecondition._usig._name_id][copy].size() == 1) {
-                            s = s.concatenate(Substitution(
-                                std::vector<int>{substitutedPrecondition._usig._args[freeArgPositions[0]]}, 
-                                std::vector<int>{*rigid_predicate_cache[substitutedPrecondition._usig._name_id][copy].begin()}));
-                        } else {
-                            freeArgRestrictions[substitutedPrecondition._usig._args[freeArgPositions[0]]] = rigid_predicate_cache[substitutedPrecondition._usig._name_id][copy];
+                    if (freeArgRestrictions.count(substitutedPrecondition._usig._args[freeArgPositions[0]])) {
+                        FlatHashSet<int> toDelete;
+                        for (const auto& constant: freeArgRestrictions[substitutedPrecondition._usig._args[freeArgPositions[0]]]) {
+                            if (!rigid_predicate_cache[substitutedPrecondition._usig._name_id][copy].count(constant)) {
+                                toDelete.insert(constant);
+                            }
                         }
+                        for (const auto& arg: toDelete) {
+                            freeArgRestrictions[substitutedPrecondition._usig._args[freeArgPositions[0]]].erase(arg);
+                        }
+                    } else {
+                        freeArgRestrictions[substitutedPrecondition._usig._args[freeArgPositions[0]]] = rigid_predicate_cache[substitutedPrecondition._usig._name_id][copy];
+                    }
+                    if (freeArgRestrictions[substitutedPrecondition._usig._args[freeArgPositions[0]]].size() == 0) {
+                        preconditionsValid = false;
+                    } else if (freeArgRestrictions[substitutedPrecondition._usig._args[freeArgPositions[0]]].size() == 1) {
+                        s = s.concatenate(Substitution(
+                            std::vector<int>{substitutedPrecondition._usig._args[freeArgPositions[0]]}, 
+                            std::vector<int>{*freeArgRestrictions[substitutedPrecondition._usig._args[freeArgPositions[0]]].begin()}));
                     }
                 }
             }
@@ -92,9 +95,19 @@ bool FactAnalysis::checkPreconditionValidityFluent(const SigSet& preconditions, 
     bool preconditionsValid = true;
     for (const auto& precondition : preconditions) {
         Signature substitutedPrecondition = precondition.substitute(s);
-        //Log::e("checking precondition: %s\n", TOSTR(substitutedPrecondition));
+        //Log::e("checking fluent precondition: %s\n", TOSTR(substitutedPrecondition));
         if (substitutedPrecondition._negated) {
-            preconditionsValid = countNegative(foundEffectsNegative, substitutedPrecondition._usig, freeArgRestrictions) || !countPositive(foundEffectsPositive, substitutedPrecondition._usig, freeArgRestrictions);
+            if (_htn.isFullyGround(substitutedPrecondition._usig) && !_htn.hasQConstants(substitutedPrecondition._usig)) {
+                preconditionsValid = countNegativeGround(foundEffectsNegative[substitutedPrecondition._usig._name_id], substitutedPrecondition._usig, freeArgRestrictions) || !countPositiveGround(foundEffectsPositive[substitutedPrecondition._usig._name_id], substitutedPrecondition._usig, freeArgRestrictions);
+            } else {
+                preconditionsValid = false;
+                for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(substitutedPrecondition._usig, _htn, freeArgRestrictions)) {
+                    if (countNegativeGround(foundEffectsNegative[substitutedPrecondition._usig._name_id], groundFact, freeArgRestrictions) || !countPositiveGround(foundEffectsPositive[substitutedPrecondition._usig._name_id], groundFact, freeArgRestrictions)) {
+                        preconditionsValid = true;
+                        break;
+                    }
+                }
+            }
         } else {
             preconditionsValid = countPositive(foundEffectsPositive, substitutedPrecondition._usig, freeArgRestrictions);
         }
