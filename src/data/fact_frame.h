@@ -14,9 +14,10 @@ struct PFCNode {
     SigSet effects;
     SigSet postconditions;
     std::vector<NodeHashMap<int, PFCNode>*> subtasks;
+    FlatHashSet<int> newArgs;
     int maxDepth = 0;
     int numNodes = 1;
-
+    
     PFCNode cutDepth(int depth) const {
         PFCNode cutNode;
         cutNode.sig = sig;

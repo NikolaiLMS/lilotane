@@ -76,6 +76,8 @@ void Parameters::setDefaults() {
     setParam("pfcNumNodes", "100"); // numNodes param for tree preprocessing
     setParam("pfcFluentPreconditions", "0"); // check fluent preconditions
     setParam("pfcPostconditions", "0"); // check reliable effects and subsequently prune effects in fact_frame preprocessing
+    setParam("pfcRestrictLimit", "1"); //
+    setParam("pfcRestrictNegated", "0");
 }
 
 void Parameters::printUsage() {
@@ -127,6 +129,8 @@ void Parameters::printUsage() {
     Log::i(" -pfcNumNodes=<+int>\n");
     Log::i(" -pfcFluentPreconditions=<0|1>\n");
     Log::i(" -pfcPostconditions=<0|1>\n");
+    Log::i(" -pfcRestrictLimit=<+int>\n");
+    Log::i(" -pfcRestrictNegated=<0|1>", "0");
     Log::i("\n");
     printParams();
     Log::setForcePrint(false);

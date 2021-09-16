@@ -59,8 +59,10 @@ void FactAnalysisPreprocessing::computeFactFramesTree() {
 void FactAnalysisPreprocessing::fillRigidPredicateCache() {
     for (const auto& fact: _init_state) {
         if (!_fluent_predicates.count(fact._name_id)) {
-            for (const auto& arg: fact._args) {
-                _rigid_predicate_cache[fact._name_id][fact.substitute(Substitution(std::vector<int>{arg}, std::vector<int>{_htn.nameId("??_")}))].insert(arg);
+            for (size_t argPosition = 0; argPosition < fact._args.size(); argPosition++) {
+                USignature copy = fact;
+                copy._args[argPosition] = _htn.nameId("??_");
+                _rigid_predicate_cache[fact._name_id][copy].insert(fact._args[argPosition]);
             }
         }
     }
@@ -678,6 +680,7 @@ void FactAnalysisPreprocessing::fillPFCNodesTopDownBFS(std::vector<int>& ordered
                                             num_custom_vars++;
                                             argsToSubstitute.push_back(arg);
                                             argSubstitutions.push_back(newArgument);
+                                            childNode.newArgs.insert(newArgument);
                                         }
                                     }
                                     childNode.substitute(Substitution(argsToSubstitute, argSubstitutions));

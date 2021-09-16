@@ -9,7 +9,7 @@ private:
     int _max_depth;
 public:
     PFCTree(HtnInstance& htn, Parameters& params): 
-        FactAnalysis(htn), _preprocessing(htn, _fact_frames, _util, params, _init_state), _check_fluent_preconditions(bool(params.getIntParam("pfcFluentPreconditions", 0))), _max_depth(params.getIntParam("pfcTreeDepth", 1)) {
+        FactAnalysis(htn, params), _preprocessing(htn, _fact_frames, _util, params, _init_state), _check_fluent_preconditions(bool(params.getIntParam("pfcFluentPreconditions", 0))), _max_depth(params.getIntParam("pfcTreeDepth", 1)) {
 
     }
 

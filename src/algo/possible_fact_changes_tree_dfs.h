@@ -9,7 +9,7 @@ private:
     int _max_depth;
 public:
     PFCTreeDFS(HtnInstance& htn, Parameters& params): 
-        FactAnalysis(htn), _preprocessing(htn, _fact_frames, _util, params, _init_state), _check_fluent_preconditions(bool(params.getIntParam("pfcFluentPreconditions", 0))), _max_depth(params.getIntParam("pfcTreeDepth", 1)) {
+        FactAnalysis(htn, params), _preprocessing(htn, _fact_frames, _util, params, _init_state), _check_fluent_preconditions(bool(params.getIntParam("pfcFluentPreconditions", 0))), _max_depth(params.getIntParam("pfcTreeDepth", 1)) {
 
     }
 
@@ -26,6 +26,7 @@ public:
         // for (const auto& eff: factFrame.effects) {
         //     Log::e("effects: %s\n", TOSTR(eff.substitute(s)));
         // }
+        SigSet postconditions;
         FlatHashMap<int, FlatHashSet<int>> freeArgRestrictions;
         if (factFrame.subtasks.size() == 0) {
             substituteEffectsAndAdd(factFrame.effects, s, _final_effects_positive, _final_effects_negative);
@@ -63,19 +64,18 @@ public:
             bool childValid = false;
             FlatHashMap<int, USigSet> childEffectsPositive = foundEffectsPositiveCopy;
             FlatHashMap<int, USigSet> childEffectsNegative = foundEffectsNegativeCopy;
-            FlatHashMap<int, FlatHashSet<int>> childFreeArgRestrictions = freeArgRestrictionsCopy;
-            Substitution copy = s;
-            bool preconditionsValid = checkPreconditionValidityRigid(child.rigidPreconditions, copy, childFreeArgRestrictions, _preprocessing.getRigidPredicateCache());
+            bool preconditionsValid = restrictNewVariables(child.rigidPreconditions, s, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache(), child.newArgs);
+            if (preconditionsValid) preconditionsValid = checkPreconditionValidityRigid(child.rigidPreconditions, s, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache());
             if (preconditionsValid && _check_fluent_preconditions) {
-                preconditionsValid = checkPreconditionValidityFluent(child.fluentPreconditions, childEffectsPositive, childEffectsNegative, copy, childFreeArgRestrictions);
+                preconditionsValid = checkPreconditionValidityFluent(child.fluentPreconditions, childEffectsPositive, childEffectsNegative, s, globalFreeArgRestrictions);
             }
             if (preconditionsValid) {
                 childValid = true;
                 if (depth == 0 || child.subtasks.size() == 0) {
-                    substituteEffectsAndAdd(child.effects, copy, foundEffectsPos, foundEffectsNeg);
+                    substituteEffectsAndAdd(child.effects, s, foundEffectsPos, foundEffectsNeg);
                 } else {
                     for (const auto& subtask: child.subtasks) {
-                        if (!checkSubtaskDFS(subtask, childEffectsPositive, childEffectsNegative, depth - 1, copy, childFreeArgRestrictions)) {
+                        if (!checkSubtaskDFS(subtask, childEffectsPositive, childEffectsNegative, depth - 1, s, globalFreeArgRestrictions)) {
                             childValid = false;
                             break;
                         }
@@ -83,28 +83,6 @@ public:
                 }
             }
             if (childValid) {
-                if (firstChild) {
-                    firstChild = false;
-                    newArgRestrictions = childFreeArgRestrictions;
-                } else {
-                    for (const auto& [arg, constants]: childFreeArgRestrictions) {
-                        if (newArgRestrictions.count(arg)) {
-                            for (const auto& constant: constants) {
-                                newArgRestrictions[arg].insert(constant);
-                            }
-                        }
-                    }
-                    std::vector<int> toDelete;
-                    for (const auto& [arg, constants]: newArgRestrictions) {
-                        if (!childFreeArgRestrictions.count(arg)) {
-                            toDelete.push_back(arg);
-                        }
-                    }
-                    for (const auto& arg: toDelete) {
-                        newArgRestrictions.erase(arg);
-                    }
-                }
-
                 valid = true;
                 for (const auto& [id, sigset]: childEffectsPositive) {
                     Sig::unite(sigset, foundEffectsPos[id]);
@@ -113,11 +91,6 @@ public:
                     Sig::unite(sigset, foundEffectsNeg[id]);
                 }
             }
-        }
-        if (valid) {
-            for (const auto& [arg, constants]: newArgRestrictions) {
-                globalFreeArgRestrictions[arg] = constants;
-            }   
         }
         return valid;
     }

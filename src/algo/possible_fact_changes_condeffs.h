@@ -8,7 +8,7 @@ private:
     bool _check_fluent_preconditions;
 public:
     PFCCondEffs(HtnInstance& htn, Parameters& params): 
-        FactAnalysis(htn), _preprocessing(htn, _fact_frames, _util, params, _init_state), _check_fluent_preconditions(bool(params.getIntParam("pfcFluentPreconditions", 0))) {
+        FactAnalysis(htn, params), _preprocessing(htn, _fact_frames, _util, params, _init_state), _check_fluent_preconditions(bool(params.getIntParam("pfcFluentPreconditions", 0))) {
 
     }
 

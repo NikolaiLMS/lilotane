@@ -35,11 +35,15 @@ protected:
     HtnInstance& _htn;
     USigSet _pos_layer_facts;
     USigSet _neg_layer_facts;
+    
+    int _new_variable_domain_size_limit = 1;
 
     FlatHashMap<int, USigSet> _final_effects_positive;
     FlatHashMap<int, USigSet> _final_effects_negative;
+    bool _restrict_negated;
 public:
-    FactAnalysis(HtnInstance& htn) : _htn(htn), _traversal(htn), _init_state(htn.getInitState()), _util(htn, _fact_frames, _traversal) {
+    FactAnalysis(HtnInstance& htn, Parameters& params) : _htn(htn), _traversal(htn), _init_state(htn.getInitState()), _util(htn, _fact_frames, _traversal), 
+        _new_variable_domain_size_limit(params.getIntParam("pfcRestrictLimit")), _restrict_negated(bool(params.getIntParam("pfcRestrictNegated"))) {
         resetReachability();
     }
 
@@ -210,6 +214,10 @@ public:
         FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache);
     bool checkPreconditionValidityFluent(const SigSet& preconditions, FlatHashMap<int, USigSet>& foundEffectsPositive, 
         FlatHashMap<int, USigSet>& foundEffectsNegative, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions);
+    bool restrictNewVariables(const SigSet& preconditions, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
+        FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache, FlatHashSet<int> nodeVars);
+    int calculatePossibleValuesUpperBound(Signature precondition, int position, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
+        FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache, FlatHashMap<int, int> foundUpperBounds);
     bool checkPreconditionValidityFluent(const SigSet& preconditions, USigSet& foundEffectsPositive, USigSet& foundEffectsNegative, Substitution& s);
     USigSet removeDominated(const FlatHashMap<int, USigSet>& originalSignatures);
     SigSet groundEffects(const FlatHashMap<int, USigSet>& positiveEffects, const FlatHashMap<int, USigSet>& negativeEffects, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions);
