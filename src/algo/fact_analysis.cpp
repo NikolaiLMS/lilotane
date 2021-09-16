@@ -33,7 +33,7 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, Substitutio
             for (const auto& argPosition: _htn.getFreeArgPositions(substitutedPrecondition._usig._args)) {
                 if (nodeArgs.count(substitutedPrecondition._usig._args[argPosition])) {
                     FlatHashSet<int> newRestrictions;
-                    if (!precondition._negated && _restrict_negated) {
+                    if (!precondition._negated) {
                         Signature substitutedPreconditionCopy = substitutedPrecondition;
                         substitutedPreconditionCopy._usig._args[argPosition] = _htn.nameId("??_");
                         for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(substitutedPreconditionCopy._usig, _htn, freeArgRestrictions, argPosition)) {
@@ -48,7 +48,7 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, Substitutio
                                 }
                             }
                         }
-                    } else if () {
+                    } else if (_restrict_negated) {
                         for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(substitutedPrecondition._usig, _htn, freeArgRestrictions)) {
                             //Log::d("Ground fact: %s\n", TOSTR(groundFact));
                             if (!_init_state.count(groundFact)) {
@@ -58,6 +58,8 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, Substitutio
                                 }
                             }
                         }
+                    } else {
+                        continue;
                     }
                     if (newRestrictions.size() > _new_variable_domain_size_limit) {
                         continue;
