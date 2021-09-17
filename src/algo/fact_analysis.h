@@ -209,11 +209,14 @@ public:
         return _fact_changes_cache[sig];
     }
 
-    void substituteEffectsAndAdd(const SigSet& effects, Substitution& s, FlatHashMap<int, USigSet>& positiveEffects, FlatHashMap<int, USigSet>& negativeEffects);
+    void substituteEffectsAndAdd(const SigSet& effects, Substitution& s, FlatHashMap<int, USigSet>& positiveEffects,
+        FlatHashMap<int, USigSet>& negativeEffects, FlatHashMap<int, SigSet>& postconditions);
     bool checkPreconditionValidityRigid(const SigSet& preconditions, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
         FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache);
     bool checkPreconditionValidityFluent(const SigSet& preconditions, FlatHashMap<int, USigSet>& foundEffectsPositive, 
-        FlatHashMap<int, USigSet>& foundEffectsNegative, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions);
+        FlatHashMap<int, USigSet>& foundEffectsNegative, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions,
+        FlatHashMap<int, SigSet>& postconditions);
+    
     bool restrictNewVariables(const SigSet& preconditions, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
         FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache, FlatHashSet<int> nodeVars);
     int calculatePossibleValuesUpperBound(Signature precondition, int position, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 

@@ -18,6 +18,7 @@ public:
     }
 
     SigSet getPossibleFactChanges(const USignature& sig) {
+        FlatHashMap<int, SigSet> postconditions;
         //Log::e("getPossibleFactChanges for: %s\n", TOSTR(sig));
         _final_effects_positive.clear();
         _final_effects_negative.clear();
@@ -25,7 +26,7 @@ public:
         Substitution s = Substitution(factFrame.sig._args, sig._args);
         FlatHashMap<int, FlatHashSet<int>> freeArgRestrictions;
         if (factFrame.numNodes == 1) {
-            substituteEffectsAndAdd(factFrame.effects, s, _final_effects_positive, _final_effects_negative);
+            substituteEffectsAndAdd(factFrame.effects, s, _final_effects_positive, _final_effects_negative, postconditions);
         } else {
             std::vector<NodeHashMap<int, PFCNode>*> subtasks = factFrame.subtasks;
             for (int i = 0; i < _max_depth; i++) {
@@ -43,13 +44,13 @@ public:
                         // Log::e("Checking child: %s\n", TOSTR(child.second.sig.substitute(s)));
                         bool preconditionsValid = checkPreconditionValidityRigid(child.second.rigidPreconditions, s, freeArgRestrictions, _preprocessing.getRigidPredicateCache());
                         if (preconditionsValid && _check_fluent_preconditions) {
-                            preconditionsValid = checkPreconditionValidityFluent(child.second.fluentPreconditions, foundEffectsPositive, foundEffectsNegative, s, freeArgRestrictions);
+                            preconditionsValid = checkPreconditionValidityFluent(child.second.fluentPreconditions, foundEffectsPositive, foundEffectsNegative, s, freeArgRestrictions, postconditions);
                         }
                         if (preconditionsValid) {
-                            substituteEffectsAndAdd(child.second.effects, s, effectsPositiveSubtask, effectsNegativeSubtask);
+                            substituteEffectsAndAdd(child.second.effects, s, effectsPositiveSubtask, effectsNegativeSubtask, postconditions);
                             subtaskValid = true;
                             if (child.second.numNodes == 1 || i+1 == _max_depth) {
-                                substituteEffectsAndAdd(child.second.effects, s, _final_effects_positive, _final_effects_negative);
+                                substituteEffectsAndAdd(child.second.effects, s, _final_effects_positive, _final_effects_negative, postconditions);
                             } else {
                                 for (const auto& subtask: child.second.subtasks) {
                                     newSubtasks.push_back(subtask);

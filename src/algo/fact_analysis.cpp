@@ -6,13 +6,24 @@ void FactAnalysis::computeFactFrames() {}
 SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig) {}
 
 void FactAnalysis::substituteEffectsAndAdd(const SigSet& effects, Substitution& s, FlatHashMap<int, USigSet>& positiveEffects,
-     FlatHashMap<int, USigSet>& negativeEffects) {
+     FlatHashMap<int, USigSet>& negativeEffects, FlatHashMap<int, SigSet>& postconditions) {
     SigSet subtitutedEffects;
     for (const auto& effect: effects) {
         subtitutedEffects.insert(effect.substitute(s));
     }
     for (const auto& eff: subtitutedEffects) {
         //Log::e("Adding effect %s\n", TOSTR(eff));
+        if (postconditions.count(eff._usig._name_id)) {
+            SigSet toDelete;
+            for (const auto& postcondition: postconditions[eff._usig._name_id]) {
+                if (postcondition._negated != eff._negated) {
+                    toDelete.insert(postcondition);
+                }
+            }
+            for (const auto& postcondition: toDelete) {
+                postconditions[postcondition._usig._name_id].erase(postcondition);
+            }
+        }
         if (eff._negated) {
             negativeEffects[eff._usig._name_id].insert(eff._usig);
         } else {
@@ -160,10 +171,17 @@ bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, S
 }
 
 bool FactAnalysis::checkPreconditionValidityFluent(const SigSet& preconditions, FlatHashMap<int, USigSet>& foundEffectsPositive, 
-    FlatHashMap<int, USigSet>& foundEffectsNegative, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
+    FlatHashMap<int, USigSet>& foundEffectsNegative, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions,
+    FlatHashMap<int, SigSet>& postconditions) {
     bool preconditionsValid = true;
     for (const auto& precondition : preconditions) {
         Signature substitutedPrecondition = precondition.substitute(s);
+        substitutedPrecondition.negate();
+        if (postconditions[substitutedPrecondition._usig._name_id].count(substitutedPrecondition)){
+            preconditionsValid = false;
+            break;
+        }
+        substitutedPrecondition.negate();
         //Log::e("checking fluent precondition: %s\n", TOSTR(substitutedPrecondition));
         if (substitutedPrecondition._negated) {
             if (_htn.isFullyGround(substitutedPrecondition._usig) && !_htn.hasQConstants(substitutedPrecondition._usig)) {
