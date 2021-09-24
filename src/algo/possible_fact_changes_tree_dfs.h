@@ -37,7 +37,7 @@ public:
                 //Log::e("Checking subtask %i\n", subtaskIdx);
                 if (!checkSubtaskDFS(subtask, _final_effects_positive, _final_effects_negative, _max_depth - 1, s, freeArgRestrictions, postconditions)) {
                     _invalid_subtasks_found++;
-                    Log::e("subtask %i is not valid\n", subtaskIdx);
+                    //Log::e("subtask %i is not valid\n", subtaskIdx);
                     throw std::invalid_argument("getPFC: Operator has subtask with no valid children\n");
                 }
                 subtaskIdx++;
@@ -111,6 +111,10 @@ public:
             }
         }
         if (valid) {
+            // Log::e("NewPostconditions: \n");
+            // for (const auto& [id, sigset]: newPostconditions) {
+            //     Log::e("%s: %s\n", TOSTR(id), TOSTR(sigset));
+            // }
             postconditions = newPostconditions;
         }
         return valid;

@@ -104,6 +104,12 @@ struct PFCNode {
         }
         effects = substitutedEffects;
 
+        SigSet substitutedPostconditions;
+        for (const auto& postcondition: postconditions) {
+            substitutedPostconditions.insert(postcondition.substitute(s));
+        }
+        postconditions = substitutedPostconditions;
+
         for (const auto& subtask: subtasks) {
             std::vector<int> keyVector;
             for (const auto& [id, child]: *subtask) {

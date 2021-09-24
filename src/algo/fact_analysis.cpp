@@ -176,8 +176,11 @@ bool FactAnalysis::checkPreconditionValidityFluent(const SigSet& preconditions, 
     bool preconditionsValid = true;
     for (const auto& precondition : preconditions) {
         Signature substitutedPrecondition = precondition.substitute(s);
+        //Log::e("Checking fluent precondition: %s\n", TOSTR(substitutedPrecondition));
         substitutedPrecondition.negate();
         if (postconditions[substitutedPrecondition._usig._name_id].count(substitutedPrecondition)){
+            //Log::e("Found invalid fluent precondition: %s\n", TOSTR(substitutedPrecondition));
+            //Log::e("postconditions: %s\n", TOSTR(postconditions[substitutedPrecondition._usig._name_id]));
             preconditionsValid = false;
             break;
         }
