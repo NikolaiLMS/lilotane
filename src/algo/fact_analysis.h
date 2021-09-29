@@ -25,6 +25,9 @@ private:
     NodeHashMap<USignature, SigSet, USignatureHasher> _fact_changes_cache;
  
 protected:
+    FlatHashMap<int, SigSet> _postconditions;
+    FlatHashMap<int, SigSet> _new_postconditions;
+    bool _new_position = true;
     NodeHashMap<int, FactFrame> _fact_frames;
     FactAnalysisUtil _util;
     USigSet _init_state;
@@ -47,6 +50,19 @@ public:
         resetReachability();
     }
 
+    void resetPostconditions() {
+        _new_position = true;
+        _postconditions.clear();
+        for (const auto& [id, sigset]: _new_postconditions) {
+            for (const auto& postcondition: sigset) {
+                if (_htn.isFullyGround(postcondition._usig)) {
+                    _postconditions[id].insert(postcondition);
+                }
+            }
+        }
+        _postconditions = _new_postconditions;
+        _new_postconditions.clear();
+    }
 
     int getRigidPredicatesMatched() {
         return _rigid_predicates_matched;
@@ -77,6 +93,9 @@ public:
         _neg_layer_facts.clear();
         _initialized_facts.clear();
         _fact_changes_cache = NodeHashMap<USignature, SigSet, USignatureHasher>();
+        _postconditions.clear();
+        _new_postconditions.clear();
+        _new_position = true;
     }
 
     void addReachableFact(const Signature& fact) {

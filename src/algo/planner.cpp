@@ -849,6 +849,7 @@ void Planner::initializeNextEffects() {
     // For each possible operation effect:
     const USigSet* ops[2] = {&newPos.getActions(), &newPos.getReductions()};
     bool isAction = true;
+    _analysis->resetPostconditions();
     for (const auto& set : ops) {
         for (const auto& aSig : *set) {
             try {

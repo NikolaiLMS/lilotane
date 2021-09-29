@@ -22,20 +22,50 @@ public:
         _final_effects_negative.clear();
         FactFrame& factFrame = _fact_frames.at(sig._name_id);
         Substitution s = Substitution(factFrame.sig._args, sig._args);
-        //Log::e("getPossibleFactChanges for: %s\n", TOSTR(sig));
+        Log::e("getPossibleFactChanges for: %s\n", TOSTR(sig));
+        for (const auto& precondition: factFrame.preconditions) {
+            Signature substitutedPrecondition = precondition.substitute(s);
+            substitutedPrecondition.negate();
+            if (_postconditions.count(substitutedPrecondition._usig._name_id) && _postconditions[substitutedPrecondition._usig._name_id].count(substitutedPrecondition)) {
+                Log::e("negated substitutedPrecondition: %s found in postconditions\n", TOSTR(substitutedPrecondition));
+                throw std::invalid_argument("getPFC: Operations preconditions invalid because of postconditions\n");
+            }
+        }
         // for (const auto& eff: factFrame.effects) {
         //     Log::e("effects: %s\n", TOSTR(eff.substitute(s)));
         // }
-        FlatHashMap<int, SigSet> postconditions;
         FlatHashMap<int, FlatHashSet<int>> freeArgRestrictions;
         if (factFrame.subtasks.size() == 0) {
-            substituteEffectsAndAdd(factFrame.effects, s, _final_effects_positive, _final_effects_negative, postconditions);
+            substituteEffectsAndAdd(factFrame.effects, s, _final_effects_positive, _final_effects_negative, _postconditions);
+            for (const auto& postcondition: factFrame.postconditions) {
+                _postconditions[postcondition._usig._name_id].insert(postcondition.substitute(s));
+            }
+            if (_new_position) {
+                _new_postconditions = _postconditions;
+                _new_position = false;
+            } else {
+                std::vector<int> toDelete;
+                for (auto& [id, signatures]: _new_postconditions) {
+                    if (_postconditions.count(id) && _postconditions[id].size() > 0) {
+                        Sig::intersect(_postconditions[id], signatures);
+                    } else {
+                        toDelete.push_back(id);
+                    }
+                }
+                for (const auto& id: toDelete) {
+                    _new_postconditions.erase(id);
+                }
+            }
+            // Log::e("NewPostconditions: \n");
+            // for (const auto& [id, sigset]: _new_postconditions) {
+            //     Log::e("%s: %s\n", TOSTR(id), TOSTR(sigset));
+            // }
             return groundEffects(_final_effects_positive, _final_effects_negative, freeArgRestrictions);
         } else {
             int subtaskIdx = 0;
             for (const auto& subtask: factFrame.subtasks) {
                 //Log::e("Checking subtask %i\n", subtaskIdx);
-                if (!checkSubtaskDFS(subtask, _final_effects_positive, _final_effects_negative, _max_depth - 1, s, freeArgRestrictions, postconditions)) {
+                if (!checkSubtaskDFS(subtask, _final_effects_positive, _final_effects_negative, _max_depth - 1, s, freeArgRestrictions, _postconditions)) {
                     _invalid_subtasks_found++;
                     //Log::e("subtask %i is not valid\n", subtaskIdx);
                     throw std::invalid_argument("getPFC: Operator has subtask with no valid children\n");
@@ -43,7 +73,26 @@ public:
                 subtaskIdx++;
             }
             //Log::e("PFC: reduction is valid\n");
-
+            if (_new_position) {
+                _new_postconditions = _postconditions;
+                _new_position = false;
+            } else {
+                std::vector<int> toDelete;
+                for (auto& [id, signatures]: _new_postconditions) {
+                    if (_postconditions.count(id) && _postconditions[id].size() > 0) {
+                        Sig::intersect(_postconditions[id], signatures);
+                    } else {
+                        toDelete.push_back(id);
+                    }
+                }
+                for (const auto& id: toDelete) {
+                    _new_postconditions.erase(id);
+                }
+            }
+            // Log::e("NewPostconditions: \n");
+            // for (const auto& [id, sigset]: _new_postconditions) {
+            //     Log::e("%s: %s\n", TOSTR(id), TOSTR(sigset));
+            // }
             SigSet pfc =  groundEffects(_final_effects_positive, _final_effects_negative, freeArgRestrictions);
             //Log::e("PFC: %s\n", TOSTR(pfc));
             return pfc;
