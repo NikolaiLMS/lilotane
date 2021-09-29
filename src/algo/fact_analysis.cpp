@@ -107,29 +107,6 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, Substitutio
     return valid;
 }
 
-// int FactAnalysis::calculatePossibleValuesUpperBound(Signature& precondition, int position, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
-//     FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache, FlatHashMap<int, int> foundUpperBounds) {
-//     int bound = 1;
-//     for (int i = 0; i < precondition._usig._args.size(); i++) {
-//         if (i != position) {
-//             if (_htn.isVariable(precondition._usig._args[i])) {
-//                 if (foundUpperBounds.count(precondition._usig._args[i])) {
-//                     bound *= foundUpperBounds[precondition._usig._args[i]];
-//                 } else {
-//                     bound *= _htn.getConstantsOfSort(_htn.getSorts(precondition._usig._name_id)[i]).size();
-//                 }
-//             } else if (_htn.isQConstant(precondition._usig._args[i])) {
-//                 bound *= _htn.getDomainOfQConstant(precondition._usig._args[i]).size();
-//             }
-//         }
-//     }
-//     bound = std::min(bound, int(_htn.getConstantsOfSort(_htn.getSorts(precondition._usig._name_id)[position]).size()));
-//     if (freeArgRestrictions.count(precondition._usig._args[position])) {
-//         bound = std::min(bound, int(freeArgRestrictions[precondition._usig._args[position]].size()));
-//     }
-//     return bound;
-// }
-
 bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions,
     FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache) {
     bool preconditionsValid = true;
@@ -179,7 +156,7 @@ bool FactAnalysis::checkPreconditionValidityFluent(const SigSet& preconditions, 
         //Log::e("Checking fluent precondition: %s\n", TOSTR(substitutedPrecondition));
         substitutedPrecondition.negate();
         if (postconditions[substitutedPrecondition._usig._name_id].count(substitutedPrecondition)){
-            Log::e("Found invalid fluent precondition: %s\n", TOSTR(substitutedPrecondition));
+            //Log::e("Found invalid fluent precondition: %s\n", TOSTR(substitutedPrecondition));
             //Log::e("postconditions: %s\n", TOSTR(postconditions[substitutedPrecondition._usig._name_id]));
             preconditionsValid = false;
             break;
@@ -188,11 +165,11 @@ bool FactAnalysis::checkPreconditionValidityFluent(const SigSet& preconditions, 
         //Log::e("checking fluent precondition: %s\n", TOSTR(substitutedPrecondition));
         if (substitutedPrecondition._negated) {
             if (_htn.isFullyGround(substitutedPrecondition._usig) && !_htn.hasQConstants(substitutedPrecondition._usig)) {
-                preconditionsValid = countNegativeGround(foundEffectsNegative[substitutedPrecondition._usig._name_id], substitutedPrecondition._usig, freeArgRestrictions) || !countPositiveGround(foundEffectsPositive[substitutedPrecondition._usig._name_id], substitutedPrecondition._usig, freeArgRestrictions);
+                preconditionsValid = countNegativeGround(foundEffectsNegative[substitutedPrecondition._usig._name_id], substitutedPrecondition._usig, freeArgRestrictions) || !_init_state.count(substitutedPrecondition._usig);
             } else {
                 preconditionsValid = false;
                 for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(substitutedPrecondition._usig, _htn, freeArgRestrictions)) {
-                    if (countNegativeGround(foundEffectsNegative[substitutedPrecondition._usig._name_id], groundFact, freeArgRestrictions) || !countPositiveGround(foundEffectsPositive[substitutedPrecondition._usig._name_id], groundFact, freeArgRestrictions)) {
+                    if (countNegativeGround(foundEffectsNegative[substitutedPrecondition._usig._name_id], groundFact, freeArgRestrictions) || !_init_state.count(groundFact)) {
                         preconditionsValid = true;
                         break;
                     }
