@@ -44,6 +44,15 @@ public:
             substituteEffectsAndAdd(factFrame.effects, s, _final_effects_positive, _final_effects_negative, postconditionCopy);
             for (const auto& postcondition: factFrame.postconditions) {
                 postconditionCopy[postcondition._usig._name_id].insert(postcondition.substitute(s));
+                //Log::e("Adding postcondition %s\n", TOSTR(postcondition));
+            }
+            for (const auto& postcondition: factFrame.negatedPostconditions) {
+                Signature positiveCopy = postcondition;
+                positiveCopy.negate();
+                if (!postconditionCopy[postcondition._usig._name_id].count(positiveCopy.substitute(s))) {
+                    postconditionCopy[postcondition._usig._name_id].insert(postcondition.substitute(s));
+                    //Log::e("Adding postcondition %s\n", TOSTR(postcondition));
+                }
             }
             if (_new_position) {
                 _new_postconditions = postconditionCopy;
@@ -128,6 +137,15 @@ public:
                     substituteEffectsAndAdd(child.effects, s, foundEffectsPos, foundEffectsNeg, childPostconditions);
                     for (const auto& postcondition: child.postconditions) {
                         childPostconditions[postcondition._usig._name_id].insert(postcondition.substitute(s));
+                        // Log::e("Adding postcondition %s\n", TOSTR(postcondition));
+                    }
+                    for (const auto& postcondition: child.negatedPostconditions) {
+                        Signature positiveCopy = postcondition;
+                        positiveCopy.negate();
+                        if (!childPostconditions[postcondition._usig._name_id].count(positiveCopy.substitute(s))) {
+                            childPostconditions[postcondition._usig._name_id].insert(postcondition.substitute(s));
+                            // Log::e("Adding postcondition %s\n", TOSTR(postcondition));
+                        }
                     }
                 } else {
                     for (const auto& subtask: child.subtasks) {

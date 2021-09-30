@@ -109,7 +109,24 @@ void FactAnalysisPreprocessing::fillFactFramesAction(int& opId, int& aId, bool& 
         _fact_frames[opId].sig = action.getSignature();
         _fact_frames[opId].preconditions = action.getPreconditions();
         _fact_frames[opId].effects = action.getEffects();
-        if (_postcondition_pruning) _fact_frames[opId].postconditions = action.getEffects();
+        for (const auto& eff: action.getEffects()) {
+            if (!eff._negated) {
+                Signature negatedEffectCopy = eff;
+                negatedEffectCopy.negate();
+                if (_fact_frames[opId].effects.count(negatedEffectCopy)) {
+                    _fact_frames[opId].effects.erase(negatedEffectCopy);
+                }
+            }
+        }
+        if (_postcondition_pruning) {
+            for (const auto& eff: _fact_frames[opId].effects) {
+                if (!eff._negated) {
+                    _fact_frames[opId].postconditions.insert(eff);
+                } else {
+                    _fact_frames[opId].negatedPostconditions.insert(eff);
+                }
+            }
+        }
         change = true;
     } // else: fact frame already set
 }
@@ -150,7 +167,8 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                                             reduction.getPreconditions().end());
                 result.offsetEffects.resize(reduction.getSubtasks().size());
                 size_t priorEffs = result.effects.size();
-                size_t priorPostconditions = result.postconditions.size();
+                size_t priorPostconditionSize = result.postconditions.size();
+                size_t priorNegatedPostconditionSize = result.negatedPostconditions.size();
                 SigSet newPostconditions;
 
                 // For each subtask of the reduction
@@ -175,6 +193,9 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                             Sig::unite(normalizedEffects, result.offsetEffects[i]);
                             SigSet childPostconditions;
                             for (auto& eff : childFrame.postconditions) {
+                                if (!hasUnboundArgs(eff, argSet)) childPostconditions.insert(eff);
+                            }
+                            for (auto& eff : childFrame.negatedPostconditions) {
                                 if (!hasUnboundArgs(eff, argSet)) childPostconditions.insert(eff);
                             }
                             if (firstChild) {
@@ -233,10 +254,19 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                         }
                     }
                 }
-                result.postconditions = newPostconditions;
+                result.postconditions.clear();
+                result.negatedPostconditions.clear();
+                for (const auto& eff: newPostconditions) {
+                    if (eff._negated) {
+                        result.negatedPostconditions.insert(eff);
+                    } else {
+                        result.postconditions.insert(eff);
+                    }
+                }
 
                 numEffectsReductions += result.effects.size();
-                if (result.effects.size() != priorEffs or result.postconditions.size() != priorPostconditions) {
+                if (result.effects.size() != priorEffs or result.postconditions.size() != priorPostconditionSize or 
+                    result.negatedPostconditions.size() != priorNegatedPostconditionSize) {
                     change = true;
                 }
             }
@@ -671,6 +701,7 @@ void FactAnalysisPreprocessing::fillPFCNodesTopDownBFS(std::vector<int>& ordered
                                     childNode.rigidPreconditions = _util.filterFluentPredicates(childFrame.preconditions, _fluent_predicates);
                                     childNode.fluentPreconditions = _util.filterRigidPredicates(childFrame.preconditions, _fluent_predicates);
                                     childNode.postconditions = childFrame.postconditions;
+                                    childNode.negatedPostconditions = childFrame.negatedPostconditions;
                                     childNode.substitute(s);
                                     std::vector<int> argsToSubstitute;
                                     std::vector<int> argSubstitutions;

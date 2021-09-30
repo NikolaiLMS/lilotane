@@ -13,6 +13,7 @@ struct PFCNode {
     SigSet fluentPreconditions;
     SigSet effects;
     SigSet postconditions;
+    SigSet negatedPostconditions;
     std::vector<NodeHashMap<int, PFCNode>*> subtasks;
     FlatHashSet<int> newArgs;
     int maxDepth = 0;
@@ -110,6 +111,13 @@ struct PFCNode {
         }
         postconditions = substitutedPostconditions;
 
+        SigSet substitutedNegatedPostconditions;
+        for (const auto& postcondition: negatedPostconditions) {
+            substitutedNegatedPostconditions.insert(postcondition.substitute(s));
+        }
+        negatedPostconditions = substitutedNegatedPostconditions;
+
+
         for (const auto& subtask: subtasks) {
             std::vector<int> keyVector;
             for (const auto& [id, child]: *subtask) {
@@ -128,6 +136,7 @@ struct FactFrame {
     USignature sig;
     SigSet preconditions;
     SigSet effects;
+    SigSet negatedPostconditions;
     SigSet postconditions;
     std::vector<SigSet> offsetEffects;
     std::vector<NodeHashMap<int, PFCNode>*> subtasks;
@@ -140,6 +149,8 @@ struct FactFrame {
         for (const auto& pre : preconditions) f.preconditions.insert(pre.substitute(s));
         for (const auto& eff : effects) f.effects.insert(eff.substitute(s));
         for (const auto& eff : postconditions) f.postconditions.insert(eff.substitute(s));
+        for (const auto& eff : negatedPostconditions) f.negatedPostconditions.insert(eff.substitute(s));
+
         f.offsetEffects.resize(offsetEffects.size());
         for (size_t i = 0; i < offsetEffects.size(); i++) 
             for (const auto& eff : offsetEffects[i]) 
