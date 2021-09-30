@@ -57,6 +57,13 @@ public:
             for (const auto& postcondition: sigset) {
                 if (_htn.isFullyGround(postcondition._usig)) {
                     _postconditions[id].insert(postcondition);
+                    if (!_htn.hasQConstants(postcondition._usig)) {
+                        if (postcondition._negated) {
+                            if (_pos_layer_facts.count(postcondition._usig)) _pos_layer_facts.erase(postcondition._usig);
+                        } else {
+                            if (_neg_layer_facts.count(postcondition._usig)) _neg_layer_facts.erase(postcondition._usig);
+                        }
+                    }
                 }
             }
         }
