@@ -31,7 +31,7 @@ public:
             Signature substitutedPrecondition = precondition.substitute(s);
             substitutedPrecondition.negate();
             if (_postconditions.count(substitutedPrecondition._usig._name_id) && _postconditions[substitutedPrecondition._usig._name_id].count(substitutedPrecondition)) {
-                Log::e("negated substitutedPrecondition: %s found in postconditions\n", TOSTR(substitutedPrecondition));
+                //Log::e("negated substitutedPrecondition: %s found in postconditions\n", TOSTR(substitutedPrecondition));
                 throw std::invalid_argument("getPFC: Operations preconditions invalid because of postconditions\n");
             }
         }
@@ -126,7 +126,7 @@ public:
             FlatHashMap<int, USigSet> childEffectsPositive = foundEffectsPositiveCopy;
             FlatHashMap<int, USigSet> childEffectsNegative = foundEffectsNegativeCopy;
             FlatHashMap<int, SigSet> childPostconditions = postconditions;
-            bool preconditionsValid = restrictNewVariables(child.rigidPreconditions, s, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache(), child.newArgs);
+            bool preconditionsValid = restrictNewVariables(child.rigidPreconditions, child.fluentPreconditions, s, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache(), child.newArgs, foundEffectsPositiveCopy, foundEffectsNegativeCopy);
             if (preconditionsValid) preconditionsValid = checkPreconditionValidityRigid(child.rigidPreconditions, s, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache());
             if (preconditionsValid && _check_fluent_preconditions) {
                 preconditionsValid = checkPreconditionValidityFluent(child.fluentPreconditions, childEffectsPositive, childEffectsNegative, s, globalFreeArgRestrictions, postconditions);

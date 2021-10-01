@@ -78,6 +78,7 @@ void Parameters::setDefaults() {
     setParam("pfcPostconditions", "0"); // check reliable effects and subsequently prune effects in fact_frame preprocessing
     setParam("pfcRestrictLimit", "1"); //
     setParam("pfcRestrictNegated", "0");
+    setParam("pfcRestrictLimitFluent", "1"); //
 }
 
 void Parameters::printUsage() {
@@ -131,6 +132,7 @@ void Parameters::printUsage() {
     Log::i(" -pfcPostconditions=<0|1>\n");
     Log::i(" -pfcRestrictLimit=<+int>\n");
     Log::i(" -pfcRestrictNegated=<0|1>", "0");
+    Log::i(" -pfcRestrictLimitFluent=<+int>\n");
     Log::i("\n");
     printParams();
     Log::setForcePrint(false);
