@@ -126,14 +126,15 @@ public:
             FlatHashMap<int, USigSet> childEffectsPositive = foundEffectsPositiveCopy;
             FlatHashMap<int, USigSet> childEffectsNegative = foundEffectsNegativeCopy;
             FlatHashMap<int, SigSet> childPostconditions = postconditions;
-            bool preconditionsValid = restrictNewVariables(child.rigidPreconditions, child.fluentPreconditions, s, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache(), child.newArgs, foundEffectsPositiveCopy, foundEffectsNegativeCopy);
+            bool restrictedVars = false;
+            bool preconditionsValid = restrictNewVariables(child.rigidPreconditions, child.fluentPreconditions, s, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache(), child.newArgs, foundEffectsPositiveCopy, foundEffectsNegativeCopy, restrictedVars);
             if (preconditionsValid) preconditionsValid = checkPreconditionValidityRigid(child.rigidPreconditions, s, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache());
             if (preconditionsValid && _check_fluent_preconditions) {
                 preconditionsValid = checkPreconditionValidityFluent(child.fluentPreconditions, childEffectsPositive, childEffectsNegative, s, globalFreeArgRestrictions, postconditions);
             }
             if (preconditionsValid) {
                 childValid = true;
-                if (depth == 0 || child.subtasks.size() == 0) {
+                if (child.subtasks.size() == 0 || !restrictedVars) {
                     substituteEffectsAndAdd(child.effects, s, foundEffectsPos, foundEffectsNeg, childPostconditions);
                     for (const auto& postcondition: child.postconditions) {
                         childPostconditions[postcondition._usig._name_id].insert(postcondition.substitute(s));

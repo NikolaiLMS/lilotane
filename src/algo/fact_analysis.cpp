@@ -34,7 +34,7 @@ void FactAnalysis::substituteEffectsAndAdd(const SigSet& effects, Substitution& 
 
 bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSet& fluentPreconditions, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
         FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache, FlatHashSet<int> nodeArgs,
-        FlatHashMap<int, USigSet>& foundEffectsPositive, FlatHashMap<int, USigSet>& foundEffectsNegative) {
+        FlatHashMap<int, USigSet>& foundEffectsPositive, FlatHashMap<int, USigSet>& foundEffectsNegative, bool& restrictedVars) {
     bool valid = true;
     bool change = true;
     while (change && valid) {
@@ -168,6 +168,7 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
                 break;
             }
         }
+        if (change) restrictedVars = true;
     }
     return valid;
 }
