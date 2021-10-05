@@ -134,7 +134,7 @@ public:
             }
             if (preconditionsValid) {
                 childValid = true;
-                if (child.subtasks.size() == 0 || !restrictedVars) {
+                if (depth == 0 | child.subtasks.size() == 0 || !restrictedVars) {
                     substituteEffectsAndAdd(child.effects, s, foundEffectsPos, foundEffectsNeg, childPostconditions);
                     for (const auto& postcondition: child.postconditions) {
                         childPostconditions[postcondition._usig._name_id].insert(postcondition.substitute(s));
