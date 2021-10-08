@@ -15,11 +15,26 @@ void FactAnalysis::substituteEffectsAndAdd(const SigSet& effects, Substitution& 
         //Log::e("Adding effect %s\n", TOSTR(eff));
         if (postconditions.count(eff._usig._name_id)) {
             SigSet toDelete;
-            for (const auto& postcondition: postconditions[eff._usig._name_id]) {
-                if (postcondition._negated != eff._negated) {
-                    toDelete.insert(postcondition);
+            if (!_htn.isFullyGround(eff._usig) || _htn.hasQConstants(eff._usig)) {
+                for (const auto& postcondition: postconditions[eff._usig._name_id]) {
+                    if (postcondition._negated != eff._negated) {
+                        toDelete.insert(postcondition);
+                    }
+                }
+            } else {
+                for (const auto& postcondition: postconditions[eff._usig._name_id]) {
+                    if (postcondition._negated != eff._negated) {
+                        if (!_htn.isFullyGround(postcondition._usig) || _htn.hasQConstants(postcondition._usig)) {
+                            toDelete.insert(postcondition);
+                        } else {
+                            if (postcondition._usig == eff._usig) {
+                                toDelete.insert(postcondition);
+                            }
+                        }
+                    }
                 }
             }
+
             for (const auto& postcondition: toDelete) {
                 postconditions[postcondition._usig._name_id].erase(postcondition);
             }
