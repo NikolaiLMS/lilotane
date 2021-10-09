@@ -100,7 +100,7 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
             }
         }
         if (!valid) break;
-        /* for (const auto& precondition: fluentPreconditions) {
+        for (const auto& precondition: fluentPreconditions) if (!precondition._negated) {
             Signature substitutedPrecondition = precondition.substitute(s);
             //Log::e("Checking fluent precondition %s\n", TOSTR(substitutedPrecondition));
             for (const auto& argPosition: _htn.getFreeArgPositions(substitutedPrecondition._usig._args)) if (!precondition._negated) {
@@ -108,7 +108,7 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
                     FlatHashSet<int> newRestrictions;
                     ArgIterator iter = ArgIterator::getFullInstantiationQConst(substitutedPrecondition._usig, _htn, freeArgRestrictions);
 
-                    if (iter.size() > _new_variable_domain_size_limit * 10) continue;
+                    if (iter.size() > _new_variable_domain_size_limit_fluent) continue;
                     for (const USignature& groundFact : iter) {
                         //Log::e("Ground fact: %s\n", TOSTR(groundFact));
                         if (countPositiveGround(foundEffectsPositive[groundFact._name_id], groundFact, freeArgRestrictions)) {
@@ -149,7 +149,7 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
             if (!valid) {
                 break;
             }
-        } */
+        }
         if (change) restrictedVars = true;
     }
     return valid;
