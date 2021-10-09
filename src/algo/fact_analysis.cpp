@@ -15,23 +15,9 @@ void FactAnalysis::substituteEffectsAndAdd(const SigSet& effects, Substitution& 
         //Log::e("Adding effect %s\n", TOSTR(eff));
         if (postconditions.count(eff._usig._name_id)) {
             SigSet toDelete;
-            if (!_htn.isFullyGround(eff._usig) || _htn.hasQConstants(eff._usig)) {
-                for (const auto& postcondition: postconditions[eff._usig._name_id]) {
-                    if (postcondition._negated != eff._negated) {
-                        toDelete.insert(postcondition);
-                    }
-                }
-            } else {
-                for (const auto& postcondition: postconditions[eff._usig._name_id]) {
-                    if (postcondition._negated != eff._negated) {
-                        if (!_htn.isFullyGround(postcondition._usig) || _htn.hasQConstants(postcondition._usig)) {
-                            toDelete.insert(postcondition);
-                        } else {
-                            if (postcondition._usig == eff._usig) {
-                                toDelete.insert(postcondition);
-                            }
-                        }
-                    }
+            for (const auto& postcondition: postconditions[eff._usig._name_id]) {
+                if (postcondition._negated != eff._negated) {
+                    toDelete.insert(postcondition);
                 }
             }
 
@@ -54,43 +40,36 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
     bool change = true;
     while (change && valid) {
         change = false;
-        for (const auto& precondition: preconditions) {
+        for (const auto& precondition: preconditions) if (!precondition._negated) {
             Signature substitutedPrecondition = precondition.substitute(s);
             //Log::e("Checking rigid precondition %s\n", TOSTR(substitutedPrecondition));
             for (const auto& argPosition: _htn.getFreeArgPositions(substitutedPrecondition._usig._args)) {
                 if (nodeArgs.count(substitutedPrecondition._usig._args[argPosition])) {
                     FlatHashSet<int> newRestrictions;
-                    if (!precondition._negated) {
-                        Signature substitutedPreconditionCopy = substitutedPrecondition;
-                        substitutedPreconditionCopy._usig._args[argPosition] = _htn.nameId("??_");
-                        for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(substitutedPreconditionCopy._usig, _htn, freeArgRestrictions, argPosition)) {
-                            //Log::d("Ground fact: %s\n", TOSTR(groundFact));
-                            if (rigid_predicate_cache.count(substitutedPrecondition._usig._name_id) 
-                            && rigid_predicate_cache[substitutedPrecondition._usig._name_id].count(groundFact)) {
-                                for (const auto& constant: rigid_predicate_cache[substitutedPrecondition._usig._name_id][groundFact]) {
-                                    newRestrictions.insert(constant);
-                                }
-                                if (newRestrictions.size() > _new_variable_domain_size_limit) {
+                    Signature substitutedPreconditionCopy = substitutedPrecondition;
+                    substitutedPreconditionCopy._usig._args[argPosition] = _htn.nameId("??_");
+                    ArgIterator iter = ArgIterator::getFullInstantiationQConst(substitutedPreconditionCopy._usig, _htn, freeArgRestrictions, argPosition);
+                    if (iter.size() > _new_variable_domain_size_limit) continue;
+                    bool reachedLimit = false;
+                    for (const USignature& groundFact : iter) {
+                        //Log::d("Ground fact: %s\n", TOSTR(groundFact));
+                        if (rigid_predicate_cache.count(substitutedPrecondition._usig._name_id) 
+                        && rigid_predicate_cache[substitutedPrecondition._usig._name_id].count(groundFact)) {
+                            if (rigid_predicate_cache[substitutedPrecondition._usig._name_id][groundFact].size() > _new_variable_domain_size_limit) {
+                                reachedLimit = true;
+                                break;
+                            }
+                            for (const auto& constant: rigid_predicate_cache[substitutedPrecondition._usig._name_id][groundFact]) {
+                                newRestrictions.insert(constant);
+                                if (newRestrictions.size() > _new_variable_domain_size_limit_fluent) {
+                                    reachedLimit = true;
                                     break;
                                 }
                             }
+                            if (reachedLimit) break;
                         }
-                    } else if (_restrict_negated) {
-                        for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(substitutedPrecondition._usig, _htn, freeArgRestrictions)) {
-                            //Log::d("Ground fact: %s\n", TOSTR(groundFact));
-                            if (!_init_state.count(groundFact)) {
-                                newRestrictions.insert(groundFact._args[argPosition]);
-                                if (newRestrictions.size() > _new_variable_domain_size_limit) {
-                                    break;
-                                }
-                            }
-                        }
-                    } else {
-                        continue;
                     }
-                    if (newRestrictions.size() > _new_variable_domain_size_limit) {
-                        continue;
-                    }
+                    if (reachedLimit) break;
                     if (!freeArgRestrictions.count(substitutedPrecondition._usig._args[argPosition])) {
                         freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]] = newRestrictions;
                         change = true;
@@ -121,35 +100,23 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
             }
         }
         if (!valid) break;
-        for (const auto& precondition: fluentPreconditions) {
+        /* for (const auto& precondition: fluentPreconditions) {
             Signature substitutedPrecondition = precondition.substitute(s);
             //Log::e("Checking fluent precondition %s\n", TOSTR(substitutedPrecondition));
-            for (const auto& argPosition: _htn.getFreeArgPositions(substitutedPrecondition._usig._args)) {
+            for (const auto& argPosition: _htn.getFreeArgPositions(substitutedPrecondition._usig._args)) if (!precondition._negated) {
                 if (nodeArgs.count(substitutedPrecondition._usig._args[argPosition])) {
                     FlatHashSet<int> newRestrictions;
-                    if (!precondition._negated) {
-                        for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(substitutedPrecondition._usig, _htn, freeArgRestrictions)) {
-                            //Log::e("Ground fact: %s\n", TOSTR(groundFact));
-                            if (countPositiveGround(foundEffectsPositive[groundFact._name_id], groundFact, freeArgRestrictions)) {
-                                newRestrictions.insert(groundFact._args[argPosition]);
-                                if (newRestrictions.size() > _new_variable_domain_size_limit_fluent) {
-                                    break;
-                                }
+                    ArgIterator iter = ArgIterator::getFullInstantiationQConst(substitutedPrecondition._usig, _htn, freeArgRestrictions);
+
+                    if (iter.size() > _new_variable_domain_size_limit * 10) continue;
+                    for (const USignature& groundFact : iter) {
+                        //Log::e("Ground fact: %s\n", TOSTR(groundFact));
+                        if (countPositiveGround(foundEffectsPositive[groundFact._name_id], groundFact, freeArgRestrictions)) {
+                            newRestrictions.insert(groundFact._args[argPosition]);
+                            if (newRestrictions.size() > _new_variable_domain_size_limit_fluent) {
+                                break;
                             }
                         }
-                    } else if (_restrict_negated) {
-                        for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(substitutedPrecondition._usig, _htn, freeArgRestrictions)) {
-                            //Log::d("Ground fact: %s\n", TOSTR(groundFact));
-                            if (countNegativeGround(foundEffectsNegative[groundFact._name_id], groundFact, freeArgRestrictions) 
-                                || !_init_state.count(groundFact)) {
-                                newRestrictions.insert(groundFact._args[argPosition]);
-                                if (newRestrictions.size() > _new_variable_domain_size_limit_fluent) {
-                                    break;
-                                }
-                            }
-                        }
-                    } else {
-                        continue;
                     }
                     if (newRestrictions.size() > _new_variable_domain_size_limit_fluent) {
                         continue;
@@ -182,7 +149,7 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
             if (!valid) {
                 break;
             }
-        }
+        } */
         if (change) restrictedVars = true;
     }
     return valid;

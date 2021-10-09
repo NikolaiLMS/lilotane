@@ -84,6 +84,14 @@ public:
         return _end;
     }
 
+    int size() {
+        int size = 1;
+        for (const auto& args: _eligible_args) {
+            size *= args.size();
+        }
+        return size;
+    }
+
     static ArgIterator getFullInstantiation(const USignature& sig, HtnInstance& _htn);
     static ArgIterator getFullInstantiation(const USignature& sig, HtnInstance& _htn, FlatHashMap<int, FlatHashSet<int>>& restrictedArgs);
     static ArgIterator getFullInstantiationQConst(const USignature& sig, HtnInstance& _htn);
