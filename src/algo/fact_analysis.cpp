@@ -89,6 +89,7 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
                         s[substitutedPrecondition._usig._args[argPosition]] = *newRestrictions.begin();
                     } else if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() == 0) {
                         //Log::e("Found no possible constants for variable %s\n", TOSTR(substitutedPrecondition._usig._args[argPosition]));
+                        _invalid_rigid_preconditions_found++;
                         freeArgRestrictions.erase(substitutedPrecondition._usig._args[argPosition]);
                         valid = false;
                         break;
@@ -140,6 +141,7 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
                         s[substitutedPrecondition._usig._args[argPosition]] = *newRestrictions.begin();
                     } else if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() == 0) {
                         //Log::e("Found no possible constants for variable %s\n", TOSTR(substitutedPrecondition._usig._args[argPosition]));
+                        _invalid_fluent_preconditions_found++;
                         freeArgRestrictions.erase(substitutedPrecondition._usig._args[argPosition]);
                         valid = false;
                         break;
