@@ -77,9 +77,10 @@ public:
             return groundEffects(_final_effects_positive, _final_effects_negative, freeArgRestrictions);
         } else {
             int subtaskIdx = 0;
+            bool foundInvalid = false;
             for (const auto& subtask: factFrame.subtasks) {
                 //Log::e("Checking subtask %i\n", subtaskIdx);
-                if (!checkSubtaskDFS(subtask, _final_effects_positive, _final_effects_negative, _max_depth - 1, s, freeArgRestrictions, postconditionCopy)) {
+                if (!checkSubtaskDFS(subtask, _final_effects_positive, _final_effects_negative, _max_depth - 1, s, freeArgRestrictions, postconditionCopy, foundInvalid)) {
                     _invalid_subtasks_found++;
                     //Log::e("subtask %i is not valid\n", subtaskIdx);
                     throw std::invalid_argument("getPFC: Operator has subtask with no valid children\n");
@@ -114,13 +115,16 @@ public:
     }
 
     bool checkSubtaskDFS(NodeHashMap<int, PFCNode>* children, FlatHashMap<int, USigSet>& foundEffectsPos, FlatHashMap<int, USigSet>& foundEffectsNeg, 
-        int depth, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& globalFreeArgRestrictions, FlatHashMap<int, SigSet>& postconditions) {
+        int depth, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& globalFreeArgRestrictions, FlatHashMap<int, SigSet>& postconditions, bool& foundInvalid) {
         bool valid = false;
         FlatHashMap<int, USigSet> foundEffectsPositiveCopy = foundEffectsPos;
         FlatHashMap<int, USigSet> foundEffectsNegativeCopy = foundEffectsNeg;
         FlatHashMap<int, SigSet> newPostconditions;
         bool firstChild = true;
+        bool foundInvalidCopy = foundInvalid;
+
         for (const auto& [id, child]: *children) {
+            bool foundInvalidChild = foundInvalidCopy;
             //Log::e("Checking child %s at depth %i\n", TOSTR(child.sig.substitute(s)), _max_depth - depth);
             bool childValid = false;
             FlatHashMap<int, USigSet> childEffectsPositive = foundEffectsPositiveCopy;
@@ -134,7 +138,7 @@ public:
             }
             if (preconditionsValid) {
                 childValid = true;
-                if (child.subtasks.size() == 0) {
+                if (child.subtasks.size() == 0 || !foundInvalidChild) {
                     substituteEffectsAndAdd(child.effects, s, foundEffectsPos, foundEffectsNeg, childPostconditions);
                     for (const auto& postcondition: child.postconditions) {
                         childPostconditions[postcondition._usig._name_id].insert(postcondition.substitute(s));
@@ -150,7 +154,7 @@ public:
                     }
                 } else {
                     for (const auto& subtask: child.subtasks) {
-                        if (!checkSubtaskDFS(subtask, childEffectsPositive, childEffectsNegative, depth - 1, s, globalFreeArgRestrictions, childPostconditions)) {
+                        if (!checkSubtaskDFS(subtask, childEffectsPositive, childEffectsNegative, depth - 1, s, globalFreeArgRestrictions, childPostconditions, foundInvalidChild)) {
                             childValid = false;
                             break;
                         }
@@ -181,6 +185,11 @@ public:
                 for (const auto& [id, sigset]: childEffectsNegative) {
                     Sig::unite(sigset, foundEffectsNeg[id]);
                 }
+            } else {
+                foundInvalid = true;
+            }
+            if (foundInvalidChild) {
+                foundInvalid = true;
             }
         }
         if (valid) {
