@@ -7,10 +7,16 @@ private:
     FactAnalysisPreprocessing _preprocessing;
     bool _check_fluent_preconditions;
     int _max_depth;
+    int _init_node_limit;
+    int _invalid_node_increase;
+    int _restrict_vars_increase;
+    int _nodes_left;
 public:
     PFCTreeDFS(HtnInstance& htn, Parameters& params): 
-        FactAnalysis(htn, params), _preprocessing(htn, _fact_frames, _util, params, _init_state), _check_fluent_preconditions(bool(params.getIntParam("pfcFluentPreconditions", 0))), _max_depth(params.getIntParam("pfcTreeDepth", 1)) {
-
+        FactAnalysis(htn, params), _preprocessing(htn, _fact_frames, _util, params, _init_state), 
+        _check_fluent_preconditions(bool(params.getIntParam("pfcFluentPreconditions", 0))), _max_depth(params.getIntParam("pfcTreeDepth", 1)),
+        _init_node_limit(params.getIntParam("pfcInitNodeLimit")), _invalid_node_increase(params.getIntParam("pfcInvalidNodeIncrease")),
+        _restrict_vars_increase(params.getIntParam("pfcRestrictVarsIncrease")) {
     }
 
     void computeFactFrames() {
@@ -18,6 +24,7 @@ public:
     }
 
     SigSet getPossibleFactChanges(const USignature& sig) {
+        _nodes_left = _init_node_limit;
         _final_effects_positive.clear();
         _final_effects_negative.clear();
         // Log::e("old postconditions: \n");
@@ -40,7 +47,7 @@ public:
         // }
         FlatHashMap<int, SigSet> postconditionCopy = _postconditions;
         FlatHashMap<int, FlatHashSet<int>> freeArgRestrictions;
-        if (factFrame.subtasks.size() == 0) {
+        if (factFrame.subtasks.size() == 0 || _nodes_left < factFrame.numDirectChildren) {
             substituteEffectsAndAdd(factFrame.effects, s, _final_effects_positive, _final_effects_negative, postconditionCopy);
             for (const auto& postcondition: factFrame.postconditions) {
                 postconditionCopy[postcondition._usig._name_id].insert(postcondition.substitute(s));
@@ -76,6 +83,7 @@ public:
             // }
             return groundEffects(_final_effects_positive, _final_effects_negative, freeArgRestrictions);
         } else {
+            _nodes_left -= factFrame.numDirectChildren;
             int subtaskIdx = 0;
             bool foundInvalid = false;
             for (const auto& subtask: factFrame.subtasks) {
@@ -136,9 +144,12 @@ public:
             if (preconditionsValid && _check_fluent_preconditions) {
                 preconditionsValid = checkPreconditionValidityFluent(child.fluentPreconditions, childEffectsPositive, childEffectsNegative, s, globalFreeArgRestrictions, postconditions);
             }
+            if (restrictedVars) {
+                _nodes_left += _restrict_vars_increase;
+            }
             if (preconditionsValid) {
                 childValid = true;
-                if (child.subtasks.size() == 0 || !(foundInvalidChild || restrictedVars)) {
+                if (child.subtasks.size() == 0 || _nodes_left < child.numDirectChildren) {
                     substituteEffectsAndAdd(child.effects, s, foundEffectsPos, foundEffectsNeg, childPostconditions);
                     for (const auto& postcondition: child.postconditions) {
                         childPostconditions[postcondition._usig._name_id].insert(postcondition.substitute(s));
@@ -153,6 +164,7 @@ public:
                         }
                     }
                 } else {
+                    _nodes_left -= child.numDirectChildren;
                     for (const auto& subtask: child.subtasks) {
                         if (!checkSubtaskDFS(subtask, childEffectsPositive, childEffectsNegative, depth - 1, s, globalFreeArgRestrictions, childPostconditions, foundInvalidChild)) {
                             childValid = false;
@@ -160,6 +172,8 @@ public:
                         }
                     }
                 }
+            } else {
+                _nodes_left += _invalid_node_increase;
             }
             if (childValid) {
                 if (firstChild) {

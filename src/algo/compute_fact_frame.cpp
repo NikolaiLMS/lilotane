@@ -170,6 +170,7 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                 size_t priorPostconditionSize = result.postconditions.size();
                 size_t priorNegatedPostconditionSize = result.negatedPostconditions.size();
                 SigSet newPostconditions;
+                result.numDirectChildren = 0;
 
                 // For each subtask of the reduction
                 for (size_t i = 0; i < reduction.getSubtasks().size(); i++) {
@@ -179,6 +180,7 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                     _util.getTraversal().getPossibleChildren(reduction.getSubtasks(), i, children);
                     SigSet childrenEffectIntersection;
                     bool firstChild = true;
+                    result.numDirectChildren += children.size();
 
                     // For each such child operation
                     for (const auto& child : children) {
@@ -679,11 +681,13 @@ void FactAnalysisPreprocessing::fillPFCNodesTopDownBFS(std::vector<int>& ordered
                                 _util.getTraversal().getPossibleChildren(subtaskReduction.getSubtasks(), i, subtaskChildren);
                                 numChildrenSubtask += subtaskChildren.size();
                             }
+
                             if (numChildrenSubtask + numNodes > MAX_NODES) {
                                 nextSubtasks.resize(0);
                                 done = true;
                                 break;
                             }
+                            child.numDirectChildren = numChildrenSubtask;
                             for (size_t i = 0; i < subtaskReduction.getSubtasks().size(); i++) {
                                 NodeHashMap<int, PFCNode>* newSubtask = new NodeHashMap<int, PFCNode>;
                                 // Find all possible child operations for this subtask

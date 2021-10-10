@@ -18,7 +18,8 @@ struct PFCNode {
     FlatHashSet<int> newArgs;
     int maxDepth = 0;
     int numNodes = 1;
-    
+    int numDirectChildren = 0;
+
     PFCNode cutDepth(int depth) const {
         PFCNode cutNode;
         cutNode.sig = sig;
@@ -142,7 +143,8 @@ struct FactFrame {
     std::vector<NodeHashMap<int, PFCNode>*> subtasks;
     int maxDepth = 0;
     int numNodes = 1;
-    
+    int numDirectChildren = 0;
+
     FactFrame substitute(const Substitution& s) const {
         FactFrame f;
         f.sig = sig.substitute(s);

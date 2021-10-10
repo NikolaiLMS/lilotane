@@ -73,12 +73,15 @@ void Parameters::setDefaults() {
     setParam("wf", "0"); // output formula to f.cnf
     setParam("pfc", "base"); // pfc type, base, tree, condeffs
     setParam("pfcTreeDepth", "1"); // Max depth used in tree getPfc
-    setParam("pfcNumNodes", "100"); // numNodes param for tree preprocessing
-    setParam("pfcFluentPreconditions", "0"); // check fluent preconditions
-    setParam("pfcPostconditions", "0"); // check reliable effects and subsequently prune effects in fact_frame preprocessing
-    setParam("pfcRestrictLimit", "1"); //
+    setParam("pfcNumNodes", "1000"); // numNodes param for tree preprocessing
+    setParam("pfcFluentPreconditions", "1"); // check fluent preconditions
+    setParam("pfcPostconditions", "1"); // check reliable effects and subsequently prune effects in fact_frame preprocessing
+    setParam("pfcRestrictLimit", "100"); //
     setParam("pfcRestrictNegated", "0");
-    setParam("pfcRestrictLimitFluent", "1"); //
+    setParam("pfcRestrictLimitFluent", "100"); //
+    setParam("pfcInitNodeLimit", "10");
+    setParam("pfcInvalidNodeIncrease", "10");
+    setParam("pfcRestrictVarsIncrease", "1");
 }
 
 void Parameters::printUsage() {
@@ -131,8 +134,11 @@ void Parameters::printUsage() {
     Log::i(" -pfcFluentPreconditions=<0|1>\n");
     Log::i(" -pfcPostconditions=<0|1>\n");
     Log::i(" -pfcRestrictLimit=<+int>\n");
-    Log::i(" -pfcRestrictNegated=<0|1>", "0");
+    Log::i(" -pfcRestrictNegated=<0|1>\n", "0");
     Log::i(" -pfcRestrictLimitFluent=<+int>\n");
+    Log::i(" -pfcInitNodeLimit=<+int>\n");
+    Log::i(" -pfcInvalidNodeIncrease=<+int>\n");
+    Log::i(" -pfcRestrictVarsIncrease=<+int>\n");
     Log::i("\n");
     printParams();
     Log::setForcePrint(false);
