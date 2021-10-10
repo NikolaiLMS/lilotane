@@ -2,6 +2,7 @@ import os
 import logging
 import sys
 import time 
+import math
 
 from multiprocessing import Process
 import subprocess
@@ -113,15 +114,21 @@ def getNumMinedPreconditions(solution_path: str) -> int:
     logger.error(f"num_mined_preconditions: : {num_mined_preconditions}")
     return num_mined_preconditions
 
+@catchProcessError
+def getRamNeeded(solution_path: str) -> int:
+    ram_needed = int(subprocess.check_output([f"grep 'MEMPEAK_KBS' {solution_path} |" + " awk '{print $8}'"], shell=True).decode())
+    logger.error(f"ram_needed: : {ram_needed}")
+    return ram_needed
+
 figures_all = ['depth', 'num_clauses', 'invalid_subtasks', 'invalid_rigid_preconditions', 'invalid_fluent_preconditions', 'preprocessing_time', 
     'depth_limit', 'num_effects_erased', 'num_mined_preconditions', 'num_effects_reduction']
 
-figures_finished = ['time_needed', 'plan_length']
+figures_finished = ['time_needed', 'plan_length', 'ram_needed']
 
 get_figure = {'depth': getLastIteration, 'num_clauses': getNumClauses, 'invalid_subtasks': getInvalidSubtasks, 'invalid_rigid_preconditions': getInvalidRigidPreconditions, 
   'invalid_fluent_preconditions': getInvalidFluentPreconditions, 'preprocessing_time': getTimePreprocessing, 'depth_limit': getDepthLimit,
   'time_needed': getRuntime, 'plan_length': getSolutionLength, 'num_effects_erased': getNumEffectsErasedRel, 'num_mined_preconditions': getNumMinedPreconditions,
-  'num_effects_reduction': getNumEffectsReduction}
+  'num_effects_reduction': getNumEffectsReduction, 'ram_needed': getRamNeeded}
 
 def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validatorPath: str, timeout: int, additional_params: str, runwatch_path: str):
     global get_figure
@@ -140,6 +147,7 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
     num_finished = 0
     num_invalid = 0
 
+    domain_sizes = {}
 
     result_paths_by_domain = {}
     runwatch_commands = ""
@@ -148,12 +156,15 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
     for instancedir in [dir for dir in os.listdir(instancesPath) if os.path.isdir(f"{instancesPath}/{dir}")]:
         domain_path = f"{instancesPath}/{instancedir}"
         instance_result_paths = []
+        instance_amount = 0
 
         for file in os.listdir(domain_path):
             if not "domain" in file and file.endswith(".hddl"):
                 domain_file_path = f"{instancesPath}/{instancedir}/domain.hddl"
                 if not os.path.isfile(domain_file_path):
                     domain_file_path = f"{instancesPath}/{instancedir}/{file[:-5]}-domain.hddl"
+
+                instance_amount += 1
 
                 instance_file_path = f"{domain_path}/{file}"
                 instance_result = None
@@ -175,7 +186,7 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
                 num_job += 1
     
         result_paths_by_domain[instancedir] = instance_result_paths
-
+        domain_sizes[instancedir] = instance_amount
     runwatch_commands_file = output_path + "/runwatch_commands.txt"
 
     with open(runwatch_commands_file, "w") as f:
@@ -239,6 +250,23 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
         for result in results[domain]:
             for figure_type in figure_strings_finished.keys():
                 figure_strings_finished[figure_type] += f"{result['file_id']} {domain} {result[figure_type]}\n"
+    
+    total_score = 0
+    ipc_scores_string = ""
+    for domain in results.keys():
+        score = 0
+        for result in results[domain]:
+            if result['time_needed'] <= 1.0:
+                score += 1
+            else:
+                score += 1 - (math.log(result['time_needed'])/math.log(1800))
+        score = score/domain_sizes[domain]
+        ipc_scores_string += f"{domain} {score}\n"
+        total_score += score
+    ipc_scores_string += f"Total score {total_score}"
+
+    with open(outputPath + "/ipc_scores.txt", "w") as f:
+        f.write(ipc_scores_string)
 
     for domain in unfinished_results.keys():
         for result in unfinished_results[domain]:
@@ -254,7 +282,8 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
         with open(outputPath + "/" + figure_type + "_unfinished.txt", "w") as f:
             f.write(figure_strings_unfinished[figure_type])
 
-    logger.debug(f"finished {num_finished} instances, did not finish {num_unfinished} instances, {num_errored} instances errored, {num_invalid} invalid solutions")
+    logger.debug(f"finished {num_finished} instances, did not finish {num_unfinished} instances, {num_errored} instances errored, {num_invalid} invalid solutions\n")
+    logger.debug(f"ipc-score: {total_score}")
 
 
 
