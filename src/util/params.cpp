@@ -79,9 +79,9 @@ void Parameters::setDefaults() {
     setParam("pfcRestrictLimit", "100"); //
     setParam("pfcRestrictNegated", "0");
     setParam("pfcRestrictLimitFluent", "100"); //
-    setParam("pfcInitNodeLimit", "10");
-    setParam("pfcInvalidNodeIncrease", "10");
-    setParam("pfcRestrictVarsIncrease", "1");
+    setParam("pfcInitNodeLimit", "40");
+    setParam("pfcInvalidNodeIncrease", "3");
+    setParam("pfcRestrictVarsIncrease", "0");
 }
 
 void Parameters::printUsage() {

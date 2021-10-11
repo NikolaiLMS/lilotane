@@ -144,10 +144,10 @@ public:
             if (preconditionsValid && _check_fluent_preconditions) {
                 preconditionsValid = checkPreconditionValidityFluent(child.fluentPreconditions, childEffectsPositive, childEffectsNegative, s, globalFreeArgRestrictions, postconditions);
             }
-            if (restrictedVars) {
-                _nodes_left += _restrict_vars_increase;
-            }
             if (preconditionsValid) {
+                if (restrictedVars) {
+                    _nodes_left += _restrict_vars_increase;
+                }
                 childValid = true;
                 if (child.subtasks.size() == 0 || _nodes_left < child.numDirectChildren) {
                     substituteEffectsAndAdd(child.effects, s, foundEffectsPos, foundEffectsNeg, childPostconditions);
