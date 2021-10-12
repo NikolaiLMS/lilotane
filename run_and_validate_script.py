@@ -215,8 +215,8 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
             p.wait()
             instance_result = None
             unfinished_instance_result = None
-            if return_vals[job_id] != 0:
-                logger.warning(f"Execution return value != 0: log: {result_path}")
+            if return_vals[job_id] != 0 and return_vals[job_id] != 9:
+                logger.warning(f"Execution return value {return_vals[job_id]} != 0,9: log: {result_path}")
                 num_errored += 1
             elif not hasSolution(result_path):
                 unfinished_instance_result = {'file_id': file_id}
