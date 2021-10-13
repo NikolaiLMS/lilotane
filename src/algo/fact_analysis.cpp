@@ -6,12 +6,12 @@ void FactAnalysis::computeFactFrames() {}
 SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig) {}
 
 void FactAnalysis::substituteEffectsAndAdd(const SigSet& effects, Substitution& s, FlatHashMap<int, USigSet>& positiveEffects,
-     FlatHashMap<int, USigSet>& negativeEffects, FlatHashMap<int, SigSet>& postconditions) {
+     FlatHashMap<int, USigSet>& negativeEffects, FlatHashMap<int, SigSet>& postconditions, FlatHashMap<int, FlatHashSet<int>>& globalFreeArgRestrictions) {
     SigSet subtitutedEffects;
     for (const auto& effect: effects) {
         subtitutedEffects.insert(effect.substitute(s));
     }
-    for (const auto& eff: subtitutedEffects) {
+    for (auto& eff: subtitutedEffects) {
         //Log::e("Adding effect %s\n", TOSTR(eff));
         if (postconditions.count(eff._usig._name_id)) {
             SigSet toDelete;
@@ -25,6 +25,11 @@ void FactAnalysis::substituteEffectsAndAdd(const SigSet& effects, Substitution& 
                 postconditions[postcondition._usig._name_id].erase(postcondition);
             }
         }
+        for (size_t argPosition = 0; argPosition< eff._usig._args.size(); argPosition++) {
+            if (_htn.isVariable(eff._usig._args[argPosition]) && !globalFreeArgRestrictions.count(eff._usig._args[argPosition])) {
+                eff._usig._args[argPosition] = _htn.nameId("??_");
+            }
+        }
         if (eff._negated) {
             negativeEffects[eff._usig._name_id].insert(eff._usig);
         } else {
@@ -35,7 +40,8 @@ void FactAnalysis::substituteEffectsAndAdd(const SigSet& effects, Substitution& 
 
 bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSet& fluentPreconditions, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
         FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache, FlatHashSet<int> nodeArgs,
-        FlatHashMap<int, USigSet>& foundEffectsPositive, FlatHashMap<int, USigSet>& foundEffectsNegative, bool& restrictedVars) {
+        FlatHashMap<int, USigSet>& foundEffectsPositive, FlatHashMap<int, USigSet>& foundEffectsNegative, bool& restrictedVars, 
+        FlatHashMap<int, SigSet>& postconditions) {
     bool valid = true;
     bool change = true;
     while (change && valid) {
@@ -112,6 +118,10 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
                     if (iter.size() > _new_variable_domain_size_limit_fluent) continue;
                     for (const USignature& groundFact : iter) {
                         //Log::e("Ground fact: %s\n", TOSTR(groundFact));
+                        // if (postconditions.count(substitutedPrecondition._usig._name_id) 
+                        //     && postconditions[substitutedPrecondition._usig._name_id].count(groundFact.toSignature(!substitutedPrecondition._negated))) {
+                        //     continue;
+                        // }
                         if (countPositiveGround(foundEffectsPositive[groundFact._name_id], groundFact, freeArgRestrictions)) {
                             newRestrictions.insert(groundFact._args[argPosition]);
                             if (newRestrictions.size() > _new_variable_domain_size_limit_fluent) {
@@ -269,55 +279,6 @@ USigSet FactAnalysis::removeDominated(const FlatHashMap<int, USigSet>& originalS
     return reducedSignatures;
 }
 
-
-void FactAnalysis::groundEffectsQConstIntoTarget(const FlatHashMap<int, USigSet>& effects, USigSet* target) {
-    USigSet effectsToGround = removeDominated(effects);
-
-    for (const auto& effect: effectsToGround) {
-        //Log::e("Grounding effect: %s\n", TOSTR(effect));
-        if (effect._args.empty()) (*target).emplace(effect);
-        else for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(effect, _htn)) {
-            (*target).emplace(groundFact);
-        }
-    }
-}
-
-
-SigSet FactAnalysis::groundEffectsQConst(const FlatHashMap<int, USigSet>& positiveEffects, const FlatHashMap<int, USigSet>& negativeEffects) {
-    SigSet result = groundEffectsQConst(positiveEffects, false);
-    Sig::unite(groundEffectsQConst(negativeEffects, true), result);
-    return result;
-}
-
-SigSet FactAnalysis::groundEffectsQConst(const FlatHashMap<int, USigSet>& effects, bool negated) {
-    USigSet effectsToGround = removeDominated(effects);
-    SigSet result;
-
-    for (const auto& effect: effectsToGround) {
-        if (effect._args.empty()) result.emplace(effect, negated);
-        else for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(effect, _htn)) {
-            result.emplace(groundFact, negated);
-        }
-    }
-
-    return result;
-}
-
-USigSet FactAnalysis::groundEffectsQConst(const FlatHashMap<int, USigSet>& effects) {
-    USigSet effectsToGround = removeDominated(effects);
-    USigSet result;
-
-    for (const auto& effect: effectsToGround) {
-        //Log::e("Grounding effect: %s\n", TOSTR(effect));
-        if (effect._args.empty()) result.emplace(effect);
-        else for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(effect, _htn)) {
-            result.emplace(groundFact);
-        }
-    }
-
-    return result;
-}
-
 SigSet FactAnalysis::groundEffects(const FlatHashMap<int, USigSet>& positiveEffects, const FlatHashMap<int, USigSet>& negativeEffects,
     FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
     SigSet result = groundEffects(positiveEffects, false, freeArgRestrictions);
@@ -337,20 +298,6 @@ SigSet FactAnalysis::groundEffects(const FlatHashMap<int, USigSet>& effects, boo
             result.emplace(groundFact, negated);
         }
     }
-    return result;
-}
-
-USigSet FactAnalysis::groundEffects(const FlatHashMap<int, USigSet>& effects) {
-    USigSet effectsToGround = removeDominated(effects);
-    USigSet result;
-
-    for (const auto& effect: effectsToGround) {
-        if (effect._args.empty()) result.emplace(effect);
-        else for (const USignature& groundFact : ArgIterator::getFullInstantiation(effect, _htn)) {
-            result.emplace(groundFact);
-        }
-    }
-
     return result;
 }
 

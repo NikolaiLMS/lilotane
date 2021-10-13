@@ -48,7 +48,7 @@ public:
         FlatHashMap<int, SigSet> postconditionCopy = _postconditions;
         FlatHashMap<int, FlatHashSet<int>> freeArgRestrictions;
         if (factFrame.subtasks.size() == 0 || _nodes_left < factFrame.numDirectChildren) {
-            substituteEffectsAndAdd(factFrame.effects, s, _final_effects_positive, _final_effects_negative, postconditionCopy);
+            substituteEffectsAndAdd(factFrame.effects, s, _final_effects_positive, _final_effects_negative, postconditionCopy, freeArgRestrictions);
             for (const auto& postcondition: factFrame.postconditions) {
                 postconditionCopy[postcondition._usig._name_id].insert(postcondition.substitute(s));
                 //Log::e("Adding postcondition %s\n", TOSTR(postcondition));
@@ -116,9 +116,8 @@ public:
             // for (const auto& [id, sigset]: _new_postconditions) {
             //     Log::e("%s: %s\n", TOSTR(id), TOSTR(sigset));
             // }
-            SigSet pfc =  groundEffects(_final_effects_positive, _final_effects_negative, freeArgRestrictions);
+            return groundEffects(_final_effects_positive, _final_effects_negative, freeArgRestrictions);
             //Log::e("PFC: %s\n", TOSTR(pfc));
-            return pfc;
         }
     }
 
@@ -139,7 +138,8 @@ public:
             FlatHashMap<int, USigSet> childEffectsNegative = foundEffectsNegativeCopy;
             FlatHashMap<int, SigSet> childPostconditions = postconditions;
             bool restrictedVars = false;
-            bool preconditionsValid = restrictNewVariables(child.rigidPreconditions, child.fluentPreconditions, s, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache(), child.newArgs, foundEffectsPositiveCopy, foundEffectsNegativeCopy, restrictedVars);
+            bool preconditionsValid = restrictNewVariables(child.rigidPreconditions, child.fluentPreconditions, s, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache(), 
+                child.newArgs, foundEffectsPositiveCopy, foundEffectsNegativeCopy, restrictedVars, postconditions);
             if (preconditionsValid) preconditionsValid = checkPreconditionValidityRigid(child.rigidPreconditions, s, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache());
             if (preconditionsValid && _check_fluent_preconditions) {
                 preconditionsValid = checkPreconditionValidityFluent(child.fluentPreconditions, childEffectsPositive, childEffectsNegative, s, globalFreeArgRestrictions, postconditions);
@@ -150,7 +150,7 @@ public:
                 }
                 childValid = true;
                 if (child.subtasks.size() == 0 || _nodes_left < child.numDirectChildren) {
-                    substituteEffectsAndAdd(child.effects, s, foundEffectsPos, foundEffectsNeg, childPostconditions);
+                    substituteEffectsAndAdd(child.effects, s, foundEffectsPos, foundEffectsNeg, childPostconditions, globalFreeArgRestrictions);
                     for (const auto& postcondition: child.postconditions) {
                         childPostconditions[postcondition._usig._name_id].insert(postcondition.substitute(s));
                         // Log::e("Adding postcondition %s\n", TOSTR(postcondition));

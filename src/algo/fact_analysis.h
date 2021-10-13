@@ -237,27 +237,22 @@ public:
     }
 
     void substituteEffectsAndAdd(const SigSet& effects, Substitution& s, FlatHashMap<int, USigSet>& positiveEffects,
-        FlatHashMap<int, USigSet>& negativeEffects, FlatHashMap<int, SigSet>& postconditions);
+        FlatHashMap<int, USigSet>& negativeEffects, FlatHashMap<int, SigSet>& postconditions, FlatHashMap<int, FlatHashSet<int>>& globalFreeArgRestrictions);
     bool checkPreconditionValidityRigid(const SigSet& preconditions, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
         FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache);
     bool checkPreconditionValidityFluent(const SigSet& preconditions, FlatHashMap<int, USigSet>& foundEffectsPositive, 
         FlatHashMap<int, USigSet>& foundEffectsNegative, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions,
         FlatHashMap<int, SigSet>& postconditions);
     
-    bool restrictNewVariables(const SigSet& preconditions, const SigSet& fluentPreconditions, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
+    bool restrictNewVariables(const SigSet& preconditions, const SigSet& fluentPreconditions, Substitution& s, 
+        FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
         FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache, FlatHashSet<int> nodeArgs,
-        FlatHashMap<int, USigSet>& foundEffectsPositive, FlatHashMap<int, USigSet>& foundEffectsNegative, bool& restrictedVars);
-    int calculatePossibleValuesUpperBound(Signature precondition, int position, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
-        FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache, FlatHashMap<int, int> foundUpperBounds);
-    bool checkPreconditionValidityFluent(const SigSet& preconditions, USigSet& foundEffectsPositive, USigSet& foundEffectsNegative, Substitution& s);
+        FlatHashMap<int, USigSet>& foundEffectsPositive, FlatHashMap<int, USigSet>& foundEffectsNegative, bool& restrictedVars, 
+        FlatHashMap<int, SigSet>& postconditions);
     USigSet removeDominated(const FlatHashMap<int, USigSet>& originalSignatures);
+
     SigSet groundEffects(const FlatHashMap<int, USigSet>& positiveEffects, const FlatHashMap<int, USigSet>& negativeEffects, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions);
     SigSet groundEffects(const FlatHashMap<int, USigSet>& effects, bool negated, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions);
-    USigSet groundEffects(const FlatHashMap<int, USigSet>& effects);
-    SigSet groundEffectsQConst(const FlatHashMap<int, USigSet>& positiveEffects, const FlatHashMap<int, USigSet>& negativeEffects);
-    SigSet groundEffectsQConst(const FlatHashMap<int, USigSet>& effects, bool negated);
-    USigSet groundEffectsQConst(const FlatHashMap<int, USigSet>& effects);
-    void groundEffectsQConstIntoTarget(const FlatHashMap<int, USigSet>& effects, USigSet* target);
 };
 
 #endif

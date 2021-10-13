@@ -26,7 +26,7 @@ public:
         Substitution s = Substitution(factFrame.sig._args, sig._args);
         FlatHashMap<int, FlatHashSet<int>> freeArgRestrictions;
         if (factFrame.numNodes == 1) {
-            substituteEffectsAndAdd(factFrame.effects, s, _final_effects_positive, _final_effects_negative, postconditions);
+            substituteEffectsAndAdd(factFrame.effects, s, _final_effects_positive, _final_effects_negative, postconditions, freeArgRestrictions);
         } else {
             std::vector<NodeHashMap<int, PFCNode>*> subtasks = factFrame.subtasks;
             for (int i = 0; i < _max_depth; i++) {
@@ -47,10 +47,10 @@ public:
                             preconditionsValid = checkPreconditionValidityFluent(child.second.fluentPreconditions, foundEffectsPositive, foundEffectsNegative, s, freeArgRestrictions, postconditions);
                         }
                         if (preconditionsValid) {
-                            substituteEffectsAndAdd(child.second.effects, s, effectsPositiveSubtask, effectsNegativeSubtask, postconditions);
+                            substituteEffectsAndAdd(child.second.effects, s, effectsPositiveSubtask, effectsNegativeSubtask, postconditions, freeArgRestrictions);
                             subtaskValid = true;
                             if (child.second.numNodes == 1 || i+1 == _max_depth) {
-                                substituteEffectsAndAdd(child.second.effects, s, _final_effects_positive, _final_effects_negative, postconditions);
+                                substituteEffectsAndAdd(child.second.effects, s, _final_effects_positive, _final_effects_negative, postconditions, freeArgRestrictions);
                             } else {
                                 for (const auto& subtask: child.second.subtasks) {
                                     newSubtasks.push_back(subtask);

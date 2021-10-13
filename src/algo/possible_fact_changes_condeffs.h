@@ -33,7 +33,7 @@ public:
                 // If any rigid, non-reachable prerequisite is found, don't add the conditionalEffects to the PFC,
                 if (reachable) {
                     subtaskValid = true;
-                    substituteEffectsAndAdd(conditionalEffect.second, s, effectsPositive, effectsNegative);
+                    //substituteEffectsAndAdd(conditionalEffect.second, s, effectsPositive, effectsNegative);
                 }
             }
             if (!subtaskValid) {
