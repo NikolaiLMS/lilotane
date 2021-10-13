@@ -329,46 +329,36 @@ void Planner::createNextPositionFromLeft(Position& left) {
 
     // Propagate fact changes from operations from previous position
     USigSet actionsToRemove;
+    USigSet reductionsToRemove;
     const USigSet* ops[2] = {&left.getActions(), &left.getReductions()};
     bool isAction = true;
     for (const auto& set : ops) {
         for (const auto& aSig : *set) {
 
             bool repeatedAction = isAction && _htn.isActionRepetition(aSig._name_id);
-            try {
-                //Log::e("createNextPositionFromLeft: gettingPFC %s@(%i)(%i)\n", TOSTR(aSig), _layer_idx, _pos);
-                const SigSet& pfc_new = _analysis->getPossibleFactChangesCache(aSig);
-                for (const Signature& fact : pfc_new) {
-                    if (isAction && !addEffect(
-                            repeatedAction ? aSig.renamed(_htn.getActionNameFromRepetition(aSig._name_id)) : aSig, 
-                            fact, 
-                            repeatedAction ? EffectMode::DIRECT_NO_QFACT : EffectMode::DIRECT)) {
-                        
-                        // Impossible direct effect: forbid action retroactively.
-                        Log::w("Retroactively prune action %s due to impossible effect %s\n", TOSTR(aSig), TOSTR(fact));
-                        actionsToRemove.insert(aSig);
+            //Log::d("createNextPositionFromLeft: gettingPFC %s@(%i)(%i)\n", TOSTR(aSig), _layer_idx, _pos-1);
+            const SigSet& pfc_new = _analysis->getPossibleFactChangesCache(aSig);
+            for (const Signature& fact : pfc_new) {
+                if (isAction && !addEffect(
+                        repeatedAction ? aSig.renamed(_htn.getActionNameFromRepetition(aSig._name_id)) : aSig, 
+                        fact, 
+                        repeatedAction ? EffectMode::DIRECT_NO_QFACT : EffectMode::DIRECT)) {
+                    
+                    // Impossible direct effect: forbid action retroactively.
+                    Log::w("Retroactively prune action %s due to impossible effect %s\n", TOSTR(aSig), TOSTR(fact));
+                    actionsToRemove.insert(aSig);
 
-                        // Also remove any virtualized actions corresponding to this action
-                        USignature repSig = aSig.renamed(_htn.getRepetitionNameOfAction(aSig._name_id));
-                        if (left.hasAction(repSig)) actionsToRemove.insert(repSig);
-                        
-                        break;
-                    }
-                    if (!isAction && !addEffect(aSig, fact, EffectMode::INDIRECT)) {
-                        // Impossible indirect effect: ignore.
-                    }
+                    // Also remove any virtualized actions corresponding to this action
+                    USignature repSig = aSig.renamed(_htn.getRepetitionNameOfAction(aSig._name_id));
+                    if (left.hasAction(repSig)) actionsToRemove.insert(repSig);
+                    
+                    break;
                 }
-                _analysis->deletePossibleFactChangesFromCache(aSig);
-            } catch(const std::invalid_argument& e) {
-                // Impossible direct effect: forbid action retroactively.
-                Log::w("Retroactively prune action %s because it has invalid subtask\n", TOSTR(aSig));
-                actionsToRemove.insert(aSig);
-
-                // Also remove any virtualized actions corresponding to this action
-                USignature repSig = aSig.renamed(_htn.getRepetitionNameOfAction(aSig._name_id));
-                if (left.hasAction(repSig)) actionsToRemove.insert(repSig);
-                continue;
+                if (!isAction && !addEffect(aSig, fact, EffectMode::INDIRECT)) {
+                    // Impossible indirect effect: ignore.
+                }
             }
+            _analysis->deletePossibleFactChangesFromCache(aSig);
         }
         isAction = false;
     }
@@ -850,10 +840,11 @@ void Planner::initializeNextEffects() {
     const USigSet* ops[2] = {&newPos.getActions(), &newPos.getReductions()};
     bool isAction = true;
     _analysis->resetPostconditions();
+    _analysis->resetPFCCache();
     for (const auto& set : ops) {
         for (const auto& aSig : *set) {
             try {
-                //Log::e("initializeNextEffects: gettingPFC %s@(%i)(%i)\n", TOSTR(aSig), _layer_idx, _pos);
+                //Log::d("initializeNextEffects: gettingPFC %s@(%i)(%i)\n", TOSTR(aSig), _layer_idx, _pos);
                 const SigSet& pfc = _analysis->getPossibleFactChangesCache(aSig);
                 for (const Signature& eff : pfc) {
 
@@ -869,8 +860,13 @@ void Planner::initializeNextEffects() {
                     }
                 }
             } catch(const std::invalid_argument& e) {
-                Log::w("Retroactively prune action %s because it has invalid subtask\n", TOSTR(aSig));
+                // Log::w("Retroactively prune action %s because it has invalid subtask\n", TOSTR(aSig));
                 opsToPrune.insert(aSig);
+            
+                // Also remove any virtualized actions corresponding to this action
+                USignature repSig = aSig.renamed(_htn.getRepetitionNameOfAction(aSig._name_id));
+                if (newPos.hasAction(repSig)) opsToPrune.insert(repSig);
+                continue;
             }
         }
         isAction = false;

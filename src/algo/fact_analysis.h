@@ -23,7 +23,7 @@ private:
     NodeHashMap<int, SigSet> _fact_changes; 
     NodeHashMap<int, SigSet> _lifted_fact_changes;
     NodeHashMap<USignature, SigSet, USignatureHasher> _fact_changes_cache;
- 
+
 protected:
     FlatHashMap<int, SigSet> _postconditions;
     FlatHashMap<int, SigSet> _new_postconditions;
@@ -70,6 +70,10 @@ public:
         //     }
         // }
         _new_postconditions.clear();
+    }
+
+    void resetPFCCache() {
+        _fact_changes_cache.clear();
     }
 
     int getRigidPredicatesMatched() {
