@@ -85,10 +85,9 @@ public:
         } else {
             _nodes_left -= factFrame.numDirectChildren;
             int subtaskIdx = 0;
-            bool foundInvalid = false;
             for (const auto& subtask: factFrame.subtasks) {
                 //Log::e("Checking subtask %i\n", subtaskIdx);
-                if (!checkSubtaskDFS(subtask, _final_effects_positive, _final_effects_negative, _max_depth - 1, s, freeArgRestrictions, postconditionCopy, foundInvalid)) {
+                if (!checkSubtaskDFS(subtask, _final_effects_positive, _final_effects_negative, _max_depth - 1, s, freeArgRestrictions, postconditionCopy)) {
                     _invalid_subtasks_found++;
                     //Log::e("subtask %i is not valid\n", subtaskIdx);
                     throw std::invalid_argument("getPFC: Operator has subtask with no valid children\n");
@@ -121,28 +120,27 @@ public:
         }
     }
 
-    bool checkSubtaskDFS(NodeHashMap<int, PFCNode>* children, FlatHashMap<int, USigSet>& foundEffectsPos, FlatHashMap<int, USigSet>& foundEffectsNeg, 
-        int depth, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& globalFreeArgRestrictions, FlatHashMap<int, SigSet>& postconditions, bool& foundInvalid) {
+    bool checkSubtaskDFS(NodeHashMap<int, PFCNode>* children, FlatHashMap<int, USigSet>& foundEffectsPos, FlatHashMap<int, USigSet>& foundEffectsNeg,
+        int depth, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& globalFreeArgRestrictions, FlatHashMap<int, SigSet>& postconditions) {
         bool valid = false;
         FlatHashMap<int, USigSet> foundEffectsPositiveCopy = foundEffectsPos;
         FlatHashMap<int, USigSet> foundEffectsNegativeCopy = foundEffectsNeg;
-        FlatHashMap<int, SigSet> newPostconditions;
+        FlatHashMap<int, SigSet> oldPostconditions = postconditions;
         bool firstChild = true;
-        bool foundInvalidCopy = foundInvalid;
 
         for (const auto& [id, child]: *children) {
-            bool foundInvalidChild = foundInvalidCopy;
-            //Log::e("Checking child %s at depth %i\n", TOSTR(child.sig.substitute(s)), _max_depth - depth);
+            // Log::e("Checking child %s at depth %i\n", TOSTR(child.sig.substitute(s)), _max_depth - depth);
+            // Log::e("%i\n", child.sig._name_id);
             bool childValid = false;
             FlatHashMap<int, USigSet> childEffectsPositive = foundEffectsPositiveCopy;
             FlatHashMap<int, USigSet> childEffectsNegative = foundEffectsNegativeCopy;
-            FlatHashMap<int, SigSet> childPostconditions = postconditions;
+            FlatHashMap<int, SigSet> childPostconditions = oldPostconditions;
             bool restrictedVars = false;
             bool preconditionsValid = restrictNewVariables(child.rigidPreconditions, child.fluentPreconditions, s, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache(), 
-                child.newArgs, foundEffectsPositiveCopy, foundEffectsNegativeCopy, restrictedVars, postconditions);
+                child.newArgs, foundEffectsPositiveCopy, foundEffectsNegativeCopy, restrictedVars, oldPostconditions);
             if (preconditionsValid) preconditionsValid = checkPreconditionValidityRigid(child.rigidPreconditions, s, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache());
             if (preconditionsValid && _check_fluent_preconditions) {
-                preconditionsValid = checkPreconditionValidityFluent(child.fluentPreconditions, childEffectsPositive, childEffectsNegative, s, globalFreeArgRestrictions, postconditions);
+                preconditionsValid = checkPreconditionValidityFluent(child.fluentPreconditions, childEffectsPositive, childEffectsNegative, s, globalFreeArgRestrictions, oldPostconditions);
             }
             if (preconditionsValid) {
                 if (restrictedVars) {
@@ -166,7 +164,7 @@ public:
                 } else {
                     _nodes_left -= child.numDirectChildren;
                     for (const auto& subtask: child.subtasks) {
-                        if (!checkSubtaskDFS(subtask, childEffectsPositive, childEffectsNegative, depth - 1, s, globalFreeArgRestrictions, childPostconditions, foundInvalidChild)) {
+                        if (!checkSubtaskDFS(subtask, childEffectsPositive, childEffectsNegative, depth - 1, s, globalFreeArgRestrictions, childPostconditions)) {
                             childValid = false;
                             break;
                         }
@@ -177,11 +175,11 @@ public:
             }
             if (childValid) {
                 if (firstChild) {
-                    newPostconditions = childPostconditions;
+                    postconditions = childPostconditions;
                     firstChild = false;
                 } else {
                     std::vector<int> toDelete;
-                    for (auto& [id, signatures]: newPostconditions) {
+                    for (auto& [id, signatures]: postconditions) {
                         if (childPostconditions.count(id) && childPostconditions[id].size() > 0) {
                             Sig::intersect(childPostconditions[id], signatures);
                         } else {
@@ -189,7 +187,7 @@ public:
                         }
                     }
                     for (const auto& id: toDelete) {
-                        newPostconditions.erase(id);
+                        postconditions.erase(id);
                     }
                 }
                 valid = true;
@@ -199,19 +197,24 @@ public:
                 for (const auto& [id, sigset]: childEffectsNegative) {
                     Sig::unite(sigset, foundEffectsNeg[id]);
                 }
-            } else {
-                foundInvalid = true;
-            }
-            if (foundInvalidChild) {
-                foundInvalid = true;
             }
         }
         if (valid) {
             // Log::e("NewPostconditions: \n");
-            // for (const auto& [id, sigset]: newPostconditions) {
+            // for (const auto& [id, sigset]: postconditions) {
             //     Log::e("%s: %s\n", TOSTR(id), TOSTR(sigset));
             // }
-            postconditions = newPostconditions;
+            for (const auto& [id, signatures]: postconditions) {
+                for (const auto& postcondition: signatures) {
+                    Signature negatedCopy = postcondition;
+                    negatedCopy.negate();
+                    if (negatedCopy._negated) {
+                        foundEffectsNeg[id].erase(negatedCopy._usig);
+                    } else {
+                        foundEffectsPos[id].erase(negatedCopy._usig);
+                    }
+                }
+            }
         }
         return valid;
     }

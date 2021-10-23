@@ -30,6 +30,7 @@ private:
     int MAX_NODES = 100;
     USigSet& _init_state;
     FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>> _rigid_predicate_cache;
+    FlatHashSet<int> operationsWithCycleInDescent;
 public:
     FactAnalysisPreprocessing (HtnInstance& htn, NodeHashMap<int, FactFrame>& fact_frames, FactAnalysisUtil& util, Parameters& params, USigSet& init_state) : 
         _htn(htn), _fact_frames(fact_frames), _util(util), MAX_NODES(params.getIntParam("pfcNumNodes", 100)), 
@@ -67,6 +68,9 @@ private:
     void fillPFCNodesTopDownBFS(std::vector<int>& orderedOpIds);
 
     void printFactFrameBFS(int opId);
+
+    void findOperationsWithCycles(std::map<int, std::vector<int>>& orderingOplist);
+    bool findCycle(std::map<int, std::vector<int>>& orderingOplist, int operation, FlatHashSet<int>& foundNodes);
 
     FlatHashSet<int> findFluentPredicates(const std::vector<int>& orderedOpIds);
 };

@@ -22,6 +22,25 @@ void FactAnalysisPreprocessing::computeFactFramesBase() {
     }
 }
 
+void FactAnalysisPreprocessing::findOperationsWithCycles(std::map<int, std::vector<int>>& orderingOplist) {
+    for (const auto& [operation, neighbours]: orderingOplist) {
+        FlatHashSet<int> foundNodes;
+        if (findCycle(orderingOplist, operation, foundNodes)){
+            // Log::e("cycle found in operation %s\n", TOSTR(operation));
+            operationsWithCycleInDescent.insert(operation);
+        }
+    }
+}
+
+bool FactAnalysisPreprocessing::findCycle(std::map<int, std::vector<int>>& orderingOplist, int operation, FlatHashSet<int>& foundNodes) {
+    if (foundNodes.count(operation)) return true;
+    foundNodes.insert(operation);
+    for (const auto& neighbour: orderingOplist[operation]) {
+        if (findCycle(orderingOplist, neighbour, foundNodes)) return true;
+    }
+    return false;
+}
+
 void FactAnalysisPreprocessing::computeFactFramesCondEffs() {
 
     std::vector<int> orderedOpIds = calcOrderedOpList();
@@ -95,6 +114,8 @@ std::vector<int> FactAnalysisPreprocessing::calcOrderedOpList() {
         orderingOplist[rId].insert(orderingOplist[rId].end(), childIds.begin(), childIds.end());
     }
 
+    findOperationsWithCycles(orderingOplist);
+
     // Perform a topological ordering on the nodes (operations).
     // As the graph may be cyclic, the ordering is not flawless
     // and can contain forward references.
@@ -104,13 +125,16 @@ std::vector<int> FactAnalysisPreprocessing::calcOrderedOpList() {
 }
 
 void FactAnalysisPreprocessing::fillFactFramesAction(int& opId, int& aId, bool& change) {
+    //Log::e("filling action fact frame for id %i\n", opId);
     Action action = _htn.getAnonymousAction(aId);
     if (_fact_frames[opId].sig != action.getSignature()) {
         _fact_frames[opId].sig = action.getSignature();
         _fact_frames[opId].preconditions = action.getPreconditions();
         _fact_frames[opId].effects = action.getEffects();
+        FlatHashSet<int> posEffPredicates;
         for (const auto& eff: action.getEffects()) {
             if (!eff._negated) {
+                posEffPredicates.insert(eff._usig._name_id);
                 Signature negatedEffectCopy = eff;
                 negatedEffectCopy.negate();
                 if (_fact_frames[opId].effects.count(negatedEffectCopy)) {
@@ -123,7 +147,7 @@ void FactAnalysisPreprocessing::fillFactFramesAction(int& opId, int& aId, bool& 
                 if (!eff._negated) {
                     _fact_frames[opId].postconditions.insert(eff);
                 } else {
-                    _fact_frames[opId].negatedPostconditions.insert(eff);
+                    if (!posEffPredicates.count(eff._usig._name_id)) _fact_frames[opId].negatedPostconditions.insert(eff);
                 }
             }
         }
@@ -144,7 +168,7 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
         // Iterate over each (lifted) operation in reversed order
         for (int i = orderedOpIds.size()-1; i >= 0; i--) {
             int opId = orderedOpIds[i];
-            Log::d("FF %i : %s\n", i, TOSTR(opId));
+            //Log::d("FF %i : %s\n", i, TOSTR(opId));
             if (_htn.isAction(opId) || _htn.isActionRepetition(opId)) {
                 // Action: Setting fact frame is trivial
                 int aId = opId;
@@ -158,7 +182,8 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                 // Reduction
                 const auto& reduction = _htn.getAnonymousReduction(opId);
                 FlatHashSet<int> argSet(reduction.getArguments().begin(), reduction.getArguments().end());
-                Log::d("reduction %s\n", TOSTR(opId));
+                //Log::d("reduction %s\n", TOSTR(opId));
+                //Log::e("with id %i\n", opId);
 
                 // Set up (new?) fact frame with the reduction's preconditions
                 FactFrame& result = _fact_frames[opId];
@@ -174,7 +199,7 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
 
                 // For each subtask of the reduction
                 for (size_t i = 0; i < reduction.getSubtasks().size(); i++) {
-
+                    //Log::e("checking subtask with index %i\n", i);
                     // Find all possible child operations for this subtask
                     std::vector<USignature> children;
                     _util.getTraversal().getPossibleChildren(reduction.getSubtasks(), i, children);
@@ -186,6 +211,7 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                     for (const auto& child : children) {
                         // Fact frame for this child already present?
                         if (_fact_frames.count(child._name_id)) {
+                            //Log::e("checking child with id %i\n", child._name_id);
                             // Retrieve child's fact frame
                             FactFrame childFrame = _util.getFactFrame(child);
                             SigSet normalizedEffects;
@@ -194,39 +220,24 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                             Sig::unite(normalizedEffects, result.effects);
                             Sig::unite(normalizedEffects, result.offsetEffects[i]);
                             SigSet childPostconditions;
-                            for (auto& eff : childFrame.postconditions) {
-                                if (!hasUnboundArgs(eff, argSet)) childPostconditions.insert(eff);
-                            }
-                            for (auto& eff : childFrame.negatedPostconditions) {
-                                if (!hasUnboundArgs(eff, argSet)) childPostconditions.insert(eff);
+                            if (!operationsWithCycleInDescent.count(child._name_id)) {
+                                for (auto& eff : childFrame.postconditions) {
+                                    //Log::e("postcondition: %s\n", TOSTR(eff));
+                                    if (!hasUnboundArgs(eff, argSet)) childPostconditions.insert(eff);
+                                }
+                                for (auto& eff : childFrame.negatedPostconditions) {
+                                    //Log::e("postcondition: %s\n", TOSTR(eff));
+                                    if (!hasUnboundArgs(eff, argSet)) childPostconditions.insert(eff);
+                                }
+                            } else {
+                                newPostconditions.clear();
                             }
                             if (firstChild) {
                                 firstChild = false;
                                 childrenEffectIntersection = childPostconditions;
                             } else {
-                                for (const auto& eff: childPostconditions) {
-                                    if (!childrenEffectIntersection.count(eff)) {
-                                        childrenEffectIntersection.erase(eff);
-                                    }
-                                }
+                                Sig::intersect(childPostconditions, childrenEffectIntersection);
                             }
-                            SigSet childrenEffectIntersectionFiltered;
-                            for (const auto& eff: childrenEffectIntersection) {
-                                bool valid = true;
-                                if (eff._negated) {
-                                    for (const auto& normEff: normalizedEffects) {
-                                        if (eff._usig._name_id == normEff._usig._name_id &&
-                                            eff._negated != normEff._negated) {
-                                            valid = false; 
-                                            break;
-                                        }
-                                    }
-                                }
-                                if (valid) {
-                                    childrenEffectIntersectionFiltered.insert(eff);
-                                }
-                            }
-                            childrenEffectIntersection = childrenEffectIntersectionFiltered;
 
                             SigSet newPostconditionsFiltered;
                             for (const auto& eff: newPostconditions) {
@@ -246,9 +257,8 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                         }
                     }
                     Sig::unite(childrenEffectIntersection, newPostconditions);
-                    for (const auto& eff: newPostconditions) {
-                        Signature negatedCopy = eff;
-                        negatedCopy._negated = !eff._negated;
+                    for (auto negatedCopy: newPostconditions) {
+                        negatedCopy.negate();
                         if (result.effects.count(negatedCopy)) {
                             result.effects.erase(negatedCopy);
                             _util.incrementNumEffectsErasedByPostconditions();
@@ -530,8 +540,8 @@ void FactAnalysisPreprocessing::extendPreconditions(std::vector<int>& orderedOpI
     }
     avgBranchDegreeArithmetic = int(avgBranchDegreeArithmetic/numReductions);
     DEPTH_LIMIT = std::max(int(std::log(MAX_NODES) / std::log(avgBranchDegreeArithmetic)), 1);
-    Log::e("avgBranchDegreeArithmetic: %i\n", avgBranchDegreeArithmetic);
-    Log::e("DEPTH_LIMIT: %i\n", DEPTH_LIMIT);
+    //Log::e("avgBranchDegreeArithmetic: %i\n", avgBranchDegreeArithmetic);
+    //Log::e("DEPTH_LIMIT: %i\n", DEPTH_LIMIT);
 }
 
 void FactAnalysisPreprocessing::fillPFCNodes(std::vector<int>& orderedOpIds) {
