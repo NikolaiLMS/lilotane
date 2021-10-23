@@ -114,7 +114,7 @@ std::vector<int> FactAnalysisPreprocessing::calcOrderedOpList() {
         orderingOplist[rId].insert(orderingOplist[rId].end(), childIds.begin(), childIds.end());
     }
 
-    findOperationsWithCycles(orderingOplist);
+    //findOperationsWithCycles(orderingOplist);
 
     // Perform a topological ordering on the nodes (operations).
     // As the graph may be cyclic, the ordering is not flawless
