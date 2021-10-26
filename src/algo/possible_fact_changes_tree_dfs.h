@@ -54,12 +54,7 @@ public:
                 //Log::e("Adding postcondition %s\n", TOSTR(postcondition));
             }
             for (const auto& postcondition: factFrame.negatedPostconditions) {
-                Signature positiveCopy = postcondition;
-                positiveCopy.negate();
-                if (!postconditionCopy[postcondition._usig._name_id].count(positiveCopy.substitute(s))) {
-                    postconditionCopy[postcondition._usig._name_id].insert(postcondition.substitute(s));
-                    //Log::e("Adding postcondition %s\n", TOSTR(postcondition));
-                }
+                postconditionCopy[postcondition._usig._name_id].insert(postcondition.substitute(s));
             }
             if (_new_position) {
                 _new_postconditions = postconditionCopy;
@@ -154,12 +149,7 @@ public:
                         // Log::e("Adding postcondition %s\n", TOSTR(postcondition));
                     }
                     for (const auto& postcondition: child.negatedPostconditions) {
-                        Signature positiveCopy = postcondition;
-                        positiveCopy.negate();
-                        if (!childPostconditions[postcondition._usig._name_id].count(positiveCopy.substitute(s))) {
-                            childPostconditions[postcondition._usig._name_id].insert(postcondition.substitute(s));
-                            // Log::e("Adding postcondition %s\n", TOSTR(postcondition));
-                        }
+                        childPostconditions[postcondition._usig._name_id].insert(postcondition.substitute(s));
                     }
                 } else {
                     _nodes_left -= child.numDirectChildren;
