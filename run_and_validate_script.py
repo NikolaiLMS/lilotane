@@ -121,9 +121,9 @@ def getRamNeeded(solution_path: str) -> int:
     return ram_needed
 
 figures_all = ['depth', 'num_clauses', 'invalid_subtasks', 'invalid_rigid_preconditions', 'invalid_fluent_preconditions', 'preprocessing_time', 
-    'depth_limit', 'num_effects_erased', 'num_mined_preconditions', 'num_effects_reduction']
+    'depth_limit', 'num_effects_erased', 'num_mined_preconditions', 'num_effects_reduction', 'ram_needed']
 
-figures_finished = ['time_needed', 'plan_length', 'ram_needed']
+figures_finished = ['time_needed', 'plan_length']
 
 get_figure = {'depth': getLastIteration, 'num_clauses': getNumClauses, 'invalid_subtasks': getInvalidSubtasks, 'invalid_rigid_preconditions': getInvalidRigidPreconditions, 
   'invalid_fluent_preconditions': getInvalidFluentPreconditions, 'preprocessing_time': getTimePreprocessing, 'depth_limit': getDepthLimit,
