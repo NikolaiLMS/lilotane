@@ -41,21 +41,6 @@ bool FactAnalysisPreprocessing::findCycle(std::map<int, std::vector<int>>& order
     return false;
 }
 
-void FactAnalysisPreprocessing::computeFactFramesCondEffs() {
-
-    std::vector<int> orderedOpIds = calcOrderedOpList();
-
-    _fluent_predicates = findFluentPredicates(orderedOpIds);
-
-    computeCondEffs(orderedOpIds);
-
-    extendPreconditions(orderedOpIds);
-
-    // for (const auto& [id, ff] : _fact_frames) {
-    //     Log::d("FF: %s\n", TOSTR(ff));
-    // }
-}
-
 void FactAnalysisPreprocessing::computeFactFramesTree() {
 
     std::vector<int> orderedOpIds = calcOrderedOpList();
@@ -288,191 +273,6 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
     
 }
 
-// Repeatedly extend the operations' fact frames until convergence of fact changes
-void FactAnalysisPreprocessing::computeCondEffs(std::vector<int>& orderedOpIds) {
-    bool change = true;
-    while (change) {
-        change = false;
-
-        // Iterate over each (lifted) operation in reversed order
-        for (int i = orderedOpIds.size()-1; i >= 0; i--) {
-            int opId = orderedOpIds[i];
-            Log::d("FF %i : %s\n", i, TOSTR(opId));
-            
-            if (_htn.isAction(opId) || _htn.isActionRepetition(opId)) {
-                // Action: Setting fact frame is trivial
-                int aId = opId;
-                if (_htn.isActionRepetition(opId)) aId = _htn.getActionNameFromRepetition(opId);
-                Action action = _htn.getAnonymousAction(aId);
-                if (_fact_frames[opId].sig != action.getSignature()) {
-                    _fact_frames[opId].sig = action.getSignature();
-                    _fact_frames[opId].preconditions = action.getPreconditions();
-                    _fact_frames[opId].effects = action.getEffects();
-                    NodeHashMap<std::pair<SigSet, SigSet>, SigSet, SigSetPairHasher, SigSetPairEquals> condEffs;
-                    condEffs[{SigSet(), SigSet()}] = action.getEffects();
-                    _fact_frames[opId].conditionalEffects.push_back(condEffs);
-                    change = true;
-                } // else: fact frame already set
-
-            } else if (_htn.isReductionPrimitivizable(opId)) {
-                // Primitivization of a reduction, i.e., essentially just an action
-                int aId = _htn.getReductionPrimitivizationName(opId);
-                Action action = _htn.getAnonymousAction(aId);
-                if (_fact_frames[opId].sig != action.getSignature()) {
-                    _fact_frames[opId].sig = action.getSignature();
-                    _fact_frames[opId].preconditions = action.getPreconditions();
-                    _fact_frames[opId].effects = action.getEffects();
-                    NodeHashMap<std::pair<SigSet, SigSet>, SigSet, SigSetPairHasher, SigSetPairEquals> condEffs;
-                    condEffs[{SigSet(), SigSet()}] = action.getEffects();
-                    _fact_frames[opId].conditionalEffects.push_back(condEffs);
-                    change = true;
-                } // else: fact frame already set
-
-            } else if (_htn.isReduction(opId)) {
-                // Reduction
-                const auto& reduction = _htn.getAnonymousReduction(opId);
-                FlatHashSet<int> argSet(reduction.getArguments().begin(), reduction.getArguments().end());
-
-                // Set up (new?) fact frame with the reduction's preconditions
-                FactFrame& result = _fact_frames[opId];
-                result.sig = reduction.getSignature();
-                result.preconditions.insert(reduction.getPreconditions().begin(), 
-                                            reduction.getPreconditions().end());
-                result.offsetEffects.resize(reduction.getSubtasks().size());
-                size_t priorEffs = result.effects.size();
-                size_t priorCondEffs = result.conditionalEffects.size();
-                size_t priorCondTotalEffs = 0;
-                for (auto& conditionalEffect : result.conditionalEffects) {
-                    for (auto& [prereqs, effs]: conditionalEffect) {
-                        priorCondTotalEffs += effs.size();
-                    }
-                }
-                std::vector<NodeHashMap<std::pair<SigSet, SigSet>, SigSet, SigSetPairHasher, SigSetPairEquals>> newConditionalEffects;
-                // For each subtask of the reduction
-                for (size_t i = 0; i < reduction.getSubtasks().size(); i++) {
-                    NodeHashMap<std::pair<SigSet, SigSet>, SigSet, SigSetPairHasher, SigSetPairEquals> newSubtaskCondEff;
-                    // Find all possible child operations for this subtask
-                    std::vector<USignature> children;
-                    _util.getTraversal().getPossibleChildren(reduction.getSubtasks(), i, children);
-                    
-                    // For each such child operation
-                    for (const auto& child : children) {
-
-                        // Fact frame for this child already present?
-                        if (_fact_frames.count(child._name_id)) {
-                            // Retrieve child's fact frame
-                            FactFrame childFrame = _util.getFactFrame(child);
-                            SigSet normalizedEffects;
-                            for (auto& eff : childFrame.effects) normalizedEffects.insert(normalizeSignature(eff, argSet));
-
-                            Sig::unite(normalizedEffects, result.effects);
-                            Sig::unite(normalizedEffects, result.offsetEffects[i]);
-
-                            // Pull conditionalEffects from child into reduction
-                            for (auto& conditionalEffect : childFrame.conditionalEffects) {
-                                for (auto& [preconditions, effects]: conditionalEffect) {
-                                    SigSet rigidPreconditionsNormalized;
-                                    SigSet fluentPreconditionsNormalized;
-                                    SigSet childRigidPreconditions = _util.filterFluentPredicates(childFrame.preconditions, _fluent_predicates);
-                                    SigSet childFluentPreconditions = _util.filterRigidPredicates(childFrame.preconditions, _fluent_predicates);
-
-                                    // Add (already filtered) prerequisites from child
-                                    for (auto& prereq : preconditions.first) {
-                                        rigidPreconditionsNormalized.insert(normalizeSignature(prereq, argSet));
-                                    }
-                                    
-                                    // Add (already filtered) prerequisites from child
-                                    for (auto& prereq : childRigidPreconditions) {
-                                        rigidPreconditionsNormalized.insert(normalizeSignature(prereq, argSet));
-                                    }
-
-                                    for (auto& prereq : preconditions.second) {
-                                        fluentPreconditionsNormalized.insert(normalizeSignature(prereq, argSet));
-                                    }
-
-                                    for (auto& prereq : childFluentPreconditions) {
-                                        fluentPreconditionsNormalized.insert(normalizeSignature(prereq, argSet));
-                                    }
-
-                                    // Normalize effects
-                                    SigSet newEffects;
-                                    for (auto& eff : effects) {
-                                        newEffects.insert(normalizeSignature(eff, argSet));
-                                    }
-
-                                    // Extend (new?) conditionalEffect entry with newEffects
-                                    Sig::unite(newEffects, newSubtaskCondEff[{rigidPreconditionsNormalized, fluentPreconditionsNormalized}]);
-                                }
-                            }
-                        }
-                    }
-                    newConditionalEffects.push_back(newSubtaskCondEff);
-                }
-                result.conditionalEffects = newConditionalEffects;
-
-                size_t newCondTotalEffs = 0;
-                for (const auto& conditionalEffect : result.conditionalEffects) {
-                    for (const auto& [prereqs, effs]: conditionalEffect) {
-                        newCondTotalEffs += effs.size();
-                    }
-                }
-                // Check if the fact frame has been extended non-trivially
-                Log::d("Original: Prior size: %i, new size: %i\n", priorEffs, result.effects.size());
-                Log::d("Conditional: Prior size: %i, new size: %i\n", priorCondEffs, result.conditionalEffects.size());
-                if (result.effects.size() > priorEffs) {
-                    change = true;
-                } else if (result.conditionalEffects.size() != priorCondEffs or newCondTotalEffs > priorCondTotalEffs) {
-                    change = true;
-                    Log::d("Effect size didn't change but conditionalEffects did:\n");
-                    std::vector<int> vect{opId};
-                    //testConditionalEffects(vect); TODO
-                }
-            } else {
-                Log::d("FF %s : unmatched\n", TOSTR(opId));
-            }
-        }
-    }
-}
-
-void FactAnalysisPreprocessing::printFactFrameBFS(int opId) {
-    FactFrame& factFrame = _fact_frames[opId];
-    Log::e("Root: %s\n", TOSTR(factFrame.sig));
-    Log::e("Root.numNodes: %i\n", factFrame.numNodes);
-
-    std::string subtaskArgsString = "Root subtaskArgs: ";
-    for (const auto& arg: factFrame.subtaskArgs) {
-        subtaskArgsString += TOSTR(arg) + std::string(", ");
-    }
-    subtaskArgsString += std::string("\n");
-    Log::e(subtaskArgsString.c_str());
-
-    std::vector<NodeHashMap<int, PFCNode>*> subtasks = factFrame.subtasks;
-    int depth = 1;
-    while (subtasks.size() > 0) {
-        Log::e("Depth %i:\n", depth);
-        std::vector<NodeHashMap<int, PFCNode>*> newSubtasks;
-        int subtaskIdx = 0;
-        for (const auto& subtask: subtasks) {
-            Log::e("Subtask %i:\n", subtaskIdx);
-            for (const auto& [id, child]: *subtask) {
-                Log::e("Child: %s\n", TOSTR(child.sig));
-                subtaskArgsString = "Child subtaskArgs: ";
-                for (const auto& arg: child.subtaskArgs) {
-                    subtaskArgsString += TOSTR(arg) + std::string(", ");
-                }
-                subtaskArgsString += std::string("\n");
-                Log::e(subtaskArgsString.c_str());
-                for (const auto& childSubtask: child.subtasks) {
-                    newSubtasks.push_back(childSubtask);
-                }
-            }
-            subtaskIdx++;
-        }
-        subtasks = newSubtasks;
-        depth++;
-    }
-}
-
 void FactAnalysisPreprocessing::extendPreconditions(std::vector<int>& orderedOpIds) {
     int avgBranchDegreeArithmetic = 0;
     int numReductions = 0;
@@ -542,116 +342,6 @@ void FactAnalysisPreprocessing::extendPreconditions(std::vector<int>& orderedOpI
     DEPTH_LIMIT = std::max(int(std::log(MAX_NODES) / std::log(avgBranchDegreeArithmetic)), 1);
     //Log::e("avgBranchDegreeArithmetic: %i\n", avgBranchDegreeArithmetic);
     //Log::e("DEPTH_LIMIT: %i\n", DEPTH_LIMIT);
-}
-
-void FactAnalysisPreprocessing::fillPFCNodes(std::vector<int>& orderedOpIds) {
-    // Repeatedly extend the operations' fact frames until convergence of fact changes
-    bool change = true;
-    int iteration = 0;
-    while (change) {
-        int avgNumNodes = 0;
-        change = false;
-        Log::e("Iteration #%i\n", iteration);
-        iteration++;
-        // Iterate over each (lifted) operation in reversed order
-        for (int i = orderedOpIds.size()-1; i >= 0; i--) {
-            int opId = orderedOpIds[i];
-            
-            if (_htn.isReduction(opId)) {
-                // Reduction
-                const auto& reduction = _htn.getAnonymousReduction(opId);
-                FlatHashSet<int> argSet(reduction.getArguments().begin(), reduction.getArguments().end());
-                //Log::e("Reduction: %s\n", TOSTR(opId));
-
-                // Set up (new?) fact frame with the reduction's preconditions
-                FactFrame& result = _fact_frames[opId];
-                int newMaxDepth = 0;
-                int oldNumNodes = result.numNodes;
-                int newNumNodes = oldNumNodes;
-                if (result.subtasks.size() == 0) {
-                    result.subtasks.reserve(reduction.getSubtasks().size());
-                    for (size_t j = 0; j < reduction.getSubtasks().size(); j++) {
-                        result.subtasks.push_back(new NodeHashMap<int, PFCNode>);
-                    }
-                }
-
-                // For each subtask of the reduction`
-                for (size_t i = 0; i < reduction.getSubtasks().size(); i++) {
-
-                    // Find all possible child operations for this subtask
-                    std::vector<USignature> children;
-                    _util.getTraversal().getPossibleChildren(reduction.getSubtasks(), i, children);
-
-
-                    // For each such child operation
-                    for (const auto& child : children) {
-                       // Log::e("child: %s\n", TOSTR(child));
-                        FactFrame& childFrame = _fact_frames.at(child._name_id);
-                        Substitution s = Substitution(childFrame.sig._args, child._args);
-                        if (!(*result.subtasks[i]).count(child._name_id)) {
-                            PFCNode initialNode;
-                            initialNode.sig = childFrame.sig;
-                            initialNode.effects = childFrame.effects;
-                            initialNode.rigidPreconditions = _util.filterFluentPredicates(childFrame.preconditions, _fluent_predicates);
-                            initialNode.fluentPreconditions = _util.filterRigidPredicates(childFrame.preconditions, _fluent_predicates);
-                            initialNode.substitute(s);
-                            std::vector<int> argsToSubstitute;
-                            std::vector<int> argSubstitutions;
-                            for (const auto& arg: initialNode.sig._args) {
-                                if (!argSet.count(arg)) {
-                                    if (result.subtaskArgs.count(arg)) {
-                                        int newArgument = _htn.nameId(std::string("?_customPFCVar_") + std::to_string(_num_custom_vars));
-                                        _num_custom_vars++;
-                                        argsToSubstitute.push_back(arg);
-                                        argSubstitutions.push_back(newArgument);
-                                        result.subtaskArgs.insert(newArgument);
-                                    } else {
-                                        result.subtaskArgs.insert(arg);
-                                    }
-                                }
-                            }
-                            initialNode.substitute(Substitution(argsToSubstitute, argSubstitutions));
-                            s = s.concatenate(Substitution(argsToSubstitute, argSubstitutions));
-                            (*result.subtasks[i])[child._name_id] = initialNode;
-                        } else {
-                            newNumNodes -= (*result.subtasks[i])[child._name_id].numNodes;
-                        }
-                        PFCNode& currentChildNode = (*result.subtasks[i])[child._name_id];
-
-                        PFCNode childNode;
-                        childNode.sig = childFrame.sig;
-                        childNode.effects = childFrame.effects;
-                        childNode.rigidPreconditions = _util.filterFluentPredicates(childFrame.preconditions, _fluent_predicates);
-                        childNode.fluentPreconditions = _util.filterRigidPredicates(childFrame.preconditions, _fluent_predicates);
-                        childNode.subtasks = childFrame.subtasks;
-                        childNode.maxDepth = childFrame.maxDepth;
-                        childNode.numNodes = childFrame.numNodes;
-                        childNode.subtaskArgs = childFrame.subtaskArgs;
-                        // Retrieve child's fact frame
-                        if (childNode.numNodes > currentChildNode.numNodes) {
-                            //Log::e("Normalize if\n");
-                            normalizeSubstituteNodeDiff(childNode, currentChildNode, result.subtaskArgs, s, DEPTH_LIMIT-1);
-                        }
-                        newMaxDepth = std::max(newMaxDepth, currentChildNode.maxDepth+1);
-                        newNumNodes += currentChildNode.numNodes;
-                    }
-                }
-                result.maxDepth = newMaxDepth;
-                result.numNodes = newNumNodes;
-                avgNumNodes += newNumNodes;
-                //Log::e("newNumNodes: %i\n", newNumNodes);
-                //Log::e("newMaxDepth: %i\n", newMaxDepth);
-                if (result.numNodes > oldNumNodes) {
-                    change = true;
-                }
-            } else {
-                Log::d("FF %s : unmatched\n", TOSTR(opId));
-            }
-        }
-        // for (const auto& [id, ff] : _fact_frames) {
-        //     printFactFrameBFS(id);
-        // }
-    }
 }
 
 void FactAnalysisPreprocessing::fillPFCNodesTopDownBFS(std::vector<int>& orderedOpIds) {
@@ -752,6 +442,47 @@ void FactAnalysisPreprocessing::fillPFCNodesTopDownBFS(std::vector<int>& ordered
     }
 }
 
+
+
+void FactAnalysisPreprocessing::printFactFrameBFS(int opId) {
+    FactFrame& factFrame = _fact_frames[opId];
+    Log::e("Root: %s\n", TOSTR(factFrame.sig));
+    Log::e("Root.numNodes: %i\n", factFrame.numNodes);
+
+    std::string subtaskArgsString = "Root subtaskArgs: ";
+    for (const auto& arg: factFrame.subtaskArgs) {
+        subtaskArgsString += TOSTR(arg) + std::string(", ");
+    }
+    subtaskArgsString += std::string("\n");
+    Log::e(subtaskArgsString.c_str());
+
+    std::vector<NodeHashMap<int, PFCNode>*> subtasks = factFrame.subtasks;
+    int depth = 1;
+    while (subtasks.size() > 0) {
+        Log::e("Depth %i:\n", depth);
+        std::vector<NodeHashMap<int, PFCNode>*> newSubtasks;
+        int subtaskIdx = 0;
+        for (const auto& subtask: subtasks) {
+            Log::e("Subtask %i:\n", subtaskIdx);
+            for (const auto& [id, child]: *subtask) {
+                Log::e("Child: %s\n", TOSTR(child.sig));
+                subtaskArgsString = "Child subtaskArgs: ";
+                for (const auto& arg: child.subtaskArgs) {
+                    subtaskArgsString += TOSTR(arg) + std::string(", ");
+                }
+                subtaskArgsString += std::string("\n");
+                Log::e(subtaskArgsString.c_str());
+                for (const auto& childSubtask: child.subtasks) {
+                    newSubtasks.push_back(childSubtask);
+                }
+            }
+            subtaskIdx++;
+        }
+        subtasks = newSubtasks;
+        depth++;
+    }
+}
+
 // Iterate though all operations and find all predicates occuring in any actions effects (fluent predicates)
 // to fill _fluent_predicates, and thus also implicitly identify rigid predicates.
 FlatHashSet<int> FactAnalysisPreprocessing::findFluentPredicates(const std::vector<int>& orderedOpIds) {
@@ -782,70 +513,4 @@ FlatHashSet<int> FactAnalysisPreprocessing::findFluentPredicates(const std::vect
     }
     
     return fluentPredicates;
-}
-
-// recursively extends nodeToExtend with the new nodes in newNode until the depthLimit, the new nodes are substituted and normalized
-void FactAnalysisPreprocessing::normalizeSubstituteNodeDiff(const PFCNode& newNode, PFCNode& nodeToExtend, 
-    FlatHashSet<int>& subtaskArgsRoot, const Substitution& s, int depthLimit) {
-    if (depthLimit == 0) {
-        return;
-    }
-    if (nodeToExtend.subtasks.size() == 0) {
-        nodeToExtend.subtasks.reserve(newNode.subtasks.size());
-        for (size_t i = 0; i < newNode.subtasks.size(); i++) {
-            nodeToExtend.subtasks.push_back(new NodeHashMap<int, PFCNode>);
-        }
-    }
-    int numNodes = 1;
-    int maxDepth = 0;
-    for (size_t i = 0; i < newNode.subtasks.size(); i++) {
-        for (const auto& [id, child]: *newNode.subtasks[i]) {
-            if (!(*nodeToExtend.subtasks[i]).count(id)) {
-                (*nodeToExtend.subtasks[i])[id] = child.cutDepth(depthLimit-1);
-                (*nodeToExtend.subtasks[i])[id].substitute(s);
-                std::vector<int> argsToSubstitute;
-                std::vector<int> argSubstitutions;
-                for (const auto& arg: child.sig._args) {
-                    if (newNode.subtaskArgs.count(arg)) {
-                        if (subtaskArgsRoot.count(arg)) {
-                            int newArgument = _htn.nameId(std::string("?_customPFCVar_") + std::to_string(_num_custom_vars));
-                            _num_custom_vars++;
-                            argsToSubstitute.push_back(arg);
-                            argSubstitutions.push_back(newArgument);
-                            nodeToExtend.subtaskArgs.insert(newArgument);
-                            subtaskArgsRoot.insert(newArgument);
-                        } else {
-                            nodeToExtend.subtaskArgs.insert(arg);
-                            subtaskArgsRoot.insert(arg);
-                        }
-                    }
-                }
-
-                for (const auto& arg: (*nodeToExtend.subtasks[i])[id].subtaskArgs) {
-                    if (subtaskArgsRoot.count(arg)) {
-                        int newArgument = _htn.nameId(std::string("?_customPFCVar_") + std::to_string(_num_custom_vars));
-                        _num_custom_vars++;
-                        argsToSubstitute.push_back(arg);
-                        argSubstitutions.push_back(newArgument);
-                        nodeToExtend.subtaskArgs.insert(newArgument);
-                        subtaskArgsRoot.insert(newArgument);
-                    } else {
-                        nodeToExtend.subtaskArgs.insert(arg);
-                        subtaskArgsRoot.insert(arg);
-                    }
-                }
-                (*nodeToExtend.subtasks[i])[id].substitute(Substitution(argsToSubstitute, argSubstitutions));
-            } else if (child.numNodes > (*nodeToExtend.subtasks[i])[id].numNodes) {
-                normalizeSubstituteNodeDiff(child, (*nodeToExtend.subtasks[i])[id], subtaskArgsRoot, s, depthLimit-1);
-            }
-            PFCNode& extendedNode = (*nodeToExtend.subtasks[i])[id];
-            maxDepth = extendedNode.maxDepth+1 > maxDepth ? extendedNode.maxDepth+1 : maxDepth;
-            numNodes += extendedNode.numNodes;
-            for (const auto& arg: extendedNode.subtaskArgs) {
-                nodeToExtend.subtaskArgs.insert(arg);
-            }
-        }
-    }
-    nodeToExtend.maxDepth = maxDepth;
-    nodeToExtend.numNodes = numNodes;
 }

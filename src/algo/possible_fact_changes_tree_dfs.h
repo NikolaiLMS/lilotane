@@ -45,8 +45,8 @@ public:
         // for (const auto& eff: factFrame.effects) {
         //     Log::e("effects: %s\n", TOSTR(eff.substitute(s)));
         // }
-        FlatHashMap<int, SigSet> postconditionCopy = _postconditions;
-        FlatHashMap<int, FlatHashSet<int>> freeArgRestrictions;
+        NodeHashMap<int, SigSet> postconditionCopy = _postconditions;
+        NodeHashMap<int, FlatHashSet<int>> freeArgRestrictions;
         if (factFrame.subtasks.size() == 0 || _nodes_left < factFrame.numDirectChildren) {
             substituteEffectsAndAdd(factFrame.effects, s, _final_effects_positive, _final_effects_negative, postconditionCopy, freeArgRestrictions);
             for (const auto& postcondition: factFrame.postconditions) {
@@ -115,25 +115,25 @@ public:
         }
     }
 
-    bool checkSubtaskDFS(NodeHashMap<int, PFCNode>* children, FlatHashMap<int, USigSet>& foundEffectsPos, FlatHashMap<int, USigSet>& foundEffectsNeg,
-        int depth, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& globalFreeArgRestrictions, FlatHashMap<int, SigSet>& postconditions) {
+    bool checkSubtaskDFS(NodeHashMap<int, PFCNode>* children, NodeHashMap<int, USigSet>& foundEffectsPos, NodeHashMap<int, USigSet>& foundEffectsNeg,
+        int depth, Substitution& s, NodeHashMap<int, FlatHashSet<int>>& globalFreeArgRestrictions, NodeHashMap<int, SigSet>& postconditions) {
         bool valid = false;
-        FlatHashMap<int, USigSet> foundEffectsPositiveCopy = foundEffectsPos;
-        FlatHashMap<int, USigSet> foundEffectsNegativeCopy = foundEffectsNeg;
-        FlatHashMap<int, SigSet> oldPostconditions = postconditions;
+        NodeHashMap<int, USigSet> foundEffectsPositiveCopy = foundEffectsPos;
+        NodeHashMap<int, USigSet> foundEffectsNegativeCopy = foundEffectsNeg;
+        NodeHashMap<int, SigSet> oldPostconditions = postconditions;
         bool firstChild = true;
 
         for (const auto& [id, child]: *children) {
             // Log::e("Checking child %s at depth %i\n", TOSTR(child.sig.substitute(s)), _max_depth - depth);
             // Log::e("%i\n", child.sig._name_id);
             bool childValid = false;
-            FlatHashMap<int, USigSet> childEffectsPositive = foundEffectsPositiveCopy;
-            FlatHashMap<int, USigSet> childEffectsNegative = foundEffectsNegativeCopy;
-            FlatHashMap<int, SigSet> childPostconditions = oldPostconditions;
+            NodeHashMap<int, USigSet> childEffectsPositive = foundEffectsPositiveCopy;
+            NodeHashMap<int, USigSet> childEffectsNegative = foundEffectsNegativeCopy;
+            NodeHashMap<int, SigSet> childPostconditions = oldPostconditions;
             bool restrictedVars = false;
             bool preconditionsValid = restrictNewVariables(child.rigidPreconditions, child.fluentPreconditions, s, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache(), 
                 child.newArgs, foundEffectsPositiveCopy, foundEffectsNegativeCopy, restrictedVars, oldPostconditions);
-            if (preconditionsValid) preconditionsValid = checkPreconditionValidityRigid(child.rigidPreconditions, s, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache());
+            if (preconditionsValid) preconditionsValid = checkPreconditionValidityRigid(child.rigidPreconditions, s, globalFreeArgRestrictions);
             if (preconditionsValid && _check_fluent_preconditions) {
                 preconditionsValid = checkPreconditionValidityFluent(child.fluentPreconditions, childEffectsPositive, childEffectsNegative, s, globalFreeArgRestrictions, oldPostconditions);
             }

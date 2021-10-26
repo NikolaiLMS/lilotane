@@ -47,7 +47,7 @@ ArgIterator ArgIterator::getFullInstantiation(const USignature& sig, HtnInstance
     return ArgIterator(sig._name_id, std::move(constantsPerArg));
 }
 
-ArgIterator ArgIterator::getFullInstantiation(const USignature& sig, HtnInstance& _htn, FlatHashMap<int, FlatHashSet<int>>& restrictedArgs) {
+ArgIterator ArgIterator::getFullInstantiation(const USignature& sig, HtnInstance& _htn, NodeHashMap<int, FlatHashSet<int>>& restrictedArgs) {
     std::vector<std::vector<int>> constantsPerArg;
 
     // "Empty" signature?    
@@ -151,7 +151,7 @@ ArgIterator ArgIterator::getFullInstantiationQConst(const USignature& sig, HtnIn
     return ArgIterator(sig._name_id, std::move(constantsPerArg));
 }
 
-ArgIterator ArgIterator::getFullInstantiationQConst(const USignature& sig, HtnInstance& _htn, FlatHashMap<int, FlatHashSet<int>>& restrictedArgs) {
+ArgIterator ArgIterator::getFullInstantiationQConst(const USignature& sig, HtnInstance& _htn, NodeHashMap<int, FlatHashSet<int>>& restrictedArgs) {
     std::vector<std::vector<int>> constantsPerArg;
 
     // "Empty" signature?    
@@ -207,7 +207,7 @@ ArgIterator ArgIterator::getFullInstantiationQConst(const USignature& sig, HtnIn
     return ArgIterator(sig._name_id, std::move(constantsPerArg));
 }
 
-ArgIterator ArgIterator::getFullInstantiationQConst(const USignature& sig, HtnInstance& _htn, FlatHashMap<int, FlatHashSet<int>>& restrictedArgs, size_t exemptPosition) {
+ArgIterator ArgIterator::getFullInstantiationQConst(const USignature& sig, HtnInstance& _htn, NodeHashMap<int, FlatHashSet<int>>& restrictedArgs, size_t exemptPosition) {
     std::vector<std::vector<int>> constantsPerArg;
 
     // "Empty" signature?    

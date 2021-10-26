@@ -25,8 +25,8 @@ private:
     NodeHashMap<USignature, SigSet, USignatureHasher> _fact_changes_cache;
 
 protected:
-    FlatHashMap<int, SigSet> _postconditions;
-    FlatHashMap<int, SigSet> _new_postconditions;
+    NodeHashMap<int, SigSet> _postconditions;
+    NodeHashMap<int, SigSet> _new_postconditions;
     bool _new_position = true;
     NodeHashMap<int, FactFrame> _fact_frames;
     FactAnalysisUtil _util;
@@ -42,8 +42,8 @@ protected:
     int _new_variable_domain_size_limit = 1;
     int _new_variable_domain_size_limit_fluent = 1;
 
-    FlatHashMap<int, USigSet> _final_effects_positive;
-    FlatHashMap<int, USigSet> _final_effects_negative;
+    NodeHashMap<int, USigSet> _final_effects_positive;
+    NodeHashMap<int, USigSet> _final_effects_negative;
     bool _restrict_negated;
 public:
     FactAnalysis(HtnInstance& htn, Parameters& params) : _htn(htn), _traversal(htn), _init_state(htn.getInitState()), _util(htn, _fact_frames, _traversal), 
@@ -129,7 +129,7 @@ public:
         return _pos_layer_facts.count(fact);
     }
 
-    bool countPositive(FlatHashMap<int, USigSet>& effects, USignature& usig, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
+    bool countPositive(NodeHashMap<int, USigSet>& effects, USignature& usig, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
         if (_htn.isFullyGround(usig) && !_htn.hasQConstants(usig)) return countPositiveGround(effects[usig._name_id], usig, freeArgRestrictions);
         if (effects[usig._name_id].count(usig)) return true;
         if (_pos_layer_facts.count(usig)) return true;
@@ -140,7 +140,7 @@ public:
         return false;
     }
 
-    bool countPositiveGround(USigSet& effects, const USignature& usig, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
+    bool countPositiveGround(USigSet& effects, const USignature& usig, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
         if (_pos_layer_facts.count(usig)) return true;
         if (effects.count(usig)) return true;
         for (const auto& eff: effects) {
@@ -152,7 +152,7 @@ public:
         return false;
     }
 
-    bool countNegativeGround(USigSet& effects, const USignature& usig, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
+    bool countNegativeGround(USigSet& effects, const USignature& usig, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
         if (_neg_layer_facts.count(usig)) return true;
         if (effects.count(usig)) return true;
         for (const auto& eff: effects) {
@@ -240,23 +240,22 @@ public:
         return _fact_changes_cache[sig];
     }
 
-    void substituteEffectsAndAdd(const SigSet& effects, Substitution& s, FlatHashMap<int, USigSet>& positiveEffects,
-        FlatHashMap<int, USigSet>& negativeEffects, FlatHashMap<int, SigSet>& postconditions, FlatHashMap<int, FlatHashSet<int>>& globalFreeArgRestrictions);
-    bool checkPreconditionValidityRigid(const SigSet& preconditions, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
-        FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache);
-    bool checkPreconditionValidityFluent(const SigSet& preconditions, FlatHashMap<int, USigSet>& foundEffectsPositive, 
-        FlatHashMap<int, USigSet>& foundEffectsNegative, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions,
-        FlatHashMap<int, SigSet>& postconditions);
+    void substituteEffectsAndAdd(const SigSet& effects, Substitution& s, NodeHashMap<int, USigSet>& positiveEffects,
+        NodeHashMap<int, USigSet>& negativeEffects, NodeHashMap<int, SigSet>& postconditions, NodeHashMap<int, FlatHashSet<int>>& globalFreeArgRestrictions);
+    bool checkPreconditionValidityRigid(const SigSet& preconditions, Substitution& s, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions);
+    bool checkPreconditionValidityFluent(const SigSet& preconditions, NodeHashMap<int, USigSet>& foundEffectsPositive, 
+        NodeHashMap<int, USigSet>& foundEffectsNegative, Substitution& s, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions,
+        NodeHashMap<int, SigSet>& postconditions);
     
     bool restrictNewVariables(const SigSet& preconditions, const SigSet& fluentPreconditions, Substitution& s, 
-        FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
+        NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
         FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache, FlatHashSet<int> nodeArgs,
-        FlatHashMap<int, USigSet>& foundEffectsPositive, FlatHashMap<int, USigSet>& foundEffectsNegative, bool& restrictedVars, 
-        FlatHashMap<int, SigSet>& postconditions);
-    USigSet removeDominated(const FlatHashMap<int, USigSet>& originalSignatures);
+        NodeHashMap<int, USigSet>& foundEffectsPositive, NodeHashMap<int, USigSet>& foundEffectsNegative, bool& restrictedVars, 
+        NodeHashMap<int, SigSet>& postconditions);
+    USigSet removeDominated(const NodeHashMap<int, USigSet>& originalSignatures);
 
-    SigSet groundEffects(const FlatHashMap<int, USigSet>& positiveEffects, const FlatHashMap<int, USigSet>& negativeEffects, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions);
-    SigSet groundEffects(const FlatHashMap<int, USigSet>& effects, bool negated, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions);
+    SigSet groundEffects(const NodeHashMap<int, USigSet>& positiveEffects, const NodeHashMap<int, USigSet>& negativeEffects, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions);
+    SigSet groundEffects(const NodeHashMap<int, USigSet>& effects, bool negated, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions);
 };
 
 #endif

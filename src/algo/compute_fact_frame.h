@@ -38,8 +38,6 @@ public:
 
     void computeFactFramesBase();
 
-    void computeFactFramesCondEffs();
-
     void computeFactFramesTree();
 
     FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& getRigidPredicateCache() {
@@ -49,22 +47,13 @@ public:
 private:
     std::vector<int> calcOrderedOpList();
 
-    void normalizeSubstituteNodeDiff(const PFCNode& newNode, PFCNode& nodeToExtend, 
-        FlatHashSet<int>& subtaskArgsRoot, const Substitution& s, int depthLimit);
-
     void fillFactFramesAction(int& opId, int& aId, bool& change);
-
-    void computeCondEffs(std::vector<int>& orderingOplist);
 
     void fillFactFramesBase(std::vector<int>& orderingOplist);
     void fillRigidPredicateCache();
 
-    void fillFactFramesReliableEffects(std::vector<int>& orderedOpIds);
-    void removeFactFramesEffectsMadeImpossibleByReliableEffects(std::vector<int>& orderedOpIds);
-
     void extendPreconditions(std::vector<int>& orderingOplist);
 
-    void fillPFCNodes(std::vector<int>& orderingOplist);
     void fillPFCNodesTopDownBFS(std::vector<int>& orderedOpIds);
 
     void printFactFrameBFS(int opId);

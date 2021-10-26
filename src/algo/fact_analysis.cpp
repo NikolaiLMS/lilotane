@@ -5,8 +5,8 @@
 void FactAnalysis::computeFactFrames() {}
 SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig) {}
 
-void FactAnalysis::substituteEffectsAndAdd(const SigSet& effects, Substitution& s, FlatHashMap<int, USigSet>& positiveEffects,
-     FlatHashMap<int, USigSet>& negativeEffects, FlatHashMap<int, SigSet>& postconditions, FlatHashMap<int, FlatHashSet<int>>& globalFreeArgRestrictions) {
+void FactAnalysis::substituteEffectsAndAdd(const SigSet& effects, Substitution& s, NodeHashMap<int, USigSet>& positiveEffects,
+     NodeHashMap<int, USigSet>& negativeEffects, NodeHashMap<int, SigSet>& postconditions, NodeHashMap<int, FlatHashSet<int>>& globalFreeArgRestrictions) {
     SigSet subtitutedEffects;
     for (const auto& effect: effects) {
         subtitutedEffects.insert(effect.substitute(s));
@@ -38,10 +38,10 @@ void FactAnalysis::substituteEffectsAndAdd(const SigSet& effects, Substitution& 
     }
 }
 
-bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSet& fluentPreconditions, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
+bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSet& fluentPreconditions, Substitution& s, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
         FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache, FlatHashSet<int> nodeArgs,
-        FlatHashMap<int, USigSet>& foundEffectsPositive, FlatHashMap<int, USigSet>& foundEffectsNegative, bool& restrictedVars, 
-        FlatHashMap<int, SigSet>& postconditions) {
+        NodeHashMap<int, USigSet>& foundEffectsPositive, NodeHashMap<int, USigSet>& foundEffectsNegative, bool& restrictedVars, 
+        NodeHashMap<int, SigSet>& postconditions) {
     bool valid = true;
     bool change = true;
     while (change && valid) {
@@ -167,8 +167,7 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
     return valid;
 }
 
-bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions,
-    FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache) {
+bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, Substitution& s, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
     bool preconditionsValid = true;
     // Check if any precondition is rigid and not valid in the initState
     for (const auto& precondition : preconditions) {
@@ -207,9 +206,9 @@ bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, S
     return preconditionsValid;
 }
 
-bool FactAnalysis::checkPreconditionValidityFluent(const SigSet& preconditions, FlatHashMap<int, USigSet>& foundEffectsPositive, 
-    FlatHashMap<int, USigSet>& foundEffectsNegative, Substitution& s, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions,
-    FlatHashMap<int, SigSet>& postconditions) {
+bool FactAnalysis::checkPreconditionValidityFluent(const SigSet& preconditions, NodeHashMap<int, USigSet>& foundEffectsPositive, 
+    NodeHashMap<int, USigSet>& foundEffectsNegative, Substitution& s, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions,
+    NodeHashMap<int, SigSet>& postconditions) {
     bool preconditionsValid = true;
     for (const auto& precondition : preconditions) {
         Signature substitutedPrecondition = precondition.substitute(s);
@@ -255,7 +254,7 @@ bool FactAnalysis::checkPreconditionValidityFluent(const SigSet& preconditions, 
     return preconditionsValid;
 }
 
-USigSet FactAnalysis::removeDominated(const FlatHashMap<int, USigSet>& originalSignatures) {
+USigSet FactAnalysis::removeDominated(const NodeHashMap<int, USigSet>& originalSignatures) {
     USigSet reducedSignatures;
     for (const auto& [argname, effects]: originalSignatures) {
         USigSet dominatedSignatures;
@@ -279,14 +278,14 @@ USigSet FactAnalysis::removeDominated(const FlatHashMap<int, USigSet>& originalS
     return reducedSignatures;
 }
 
-SigSet FactAnalysis::groundEffects(const FlatHashMap<int, USigSet>& positiveEffects, const FlatHashMap<int, USigSet>& negativeEffects,
-    FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
+SigSet FactAnalysis::groundEffects(const NodeHashMap<int, USigSet>& positiveEffects, const NodeHashMap<int, USigSet>& negativeEffects,
+    NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
     SigSet result = groundEffects(positiveEffects, false, freeArgRestrictions);
     Sig::unite(groundEffects(negativeEffects, true, freeArgRestrictions), result);
     return result;
 }
 
-SigSet FactAnalysis::groundEffects(const FlatHashMap<int, USigSet>& effects, bool negated, FlatHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
+SigSet FactAnalysis::groundEffects(const NodeHashMap<int, USigSet>& effects, bool negated, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
     USigSet effectsToGround = removeDominated(effects);
     SigSet result;
 
