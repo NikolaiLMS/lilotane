@@ -92,11 +92,9 @@ public:
         return size;
     }
 
-    static ArgIterator getFullInstantiation(const USignature& sig, HtnInstance& _htn);
-    static ArgIterator getFullInstantiation(const USignature& sig, HtnInstance& _htn, NodeHashMap<int, FlatHashSet<int>>& restrictedArgs);
-    static ArgIterator getFullInstantiationQConst(const USignature& sig, HtnInstance& _htn);
-    static ArgIterator getFullInstantiationQConst(const USignature& sig, HtnInstance& _htn, NodeHashMap<int, FlatHashSet<int>>& restrictedArgs);
-    static ArgIterator getFullInstantiationQConst(const USignature& sig, HtnInstance& _htn, NodeHashMap<int, FlatHashSet<int>>& restrictedArgs, size_t exemptPosition);
+    static ArgIterator getFullInstantiation(const USignature& sig, HtnInstance& _htn, 
+        const NodeHashMap<int, FlatHashSet<int>>& restrictedArgs = NodeHashMap<int, FlatHashSet<int>>(),
+         bool groundQConstants = false, int exemptPosition = -1);
     
 };
 

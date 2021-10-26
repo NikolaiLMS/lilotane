@@ -265,6 +265,26 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
         total_score += score
     ipc_scores_string += f"Total score {total_score}"
 
+    par2_score = 0
+    total_num_instances = 0
+    par2_scores_string = ""
+    for domain in results.keys():
+        score = 0.0
+        for result in results[domain]:
+            score += result['time_needed']
+        score += (domain_sizes[domain] - len(results[domain])) * 2*1800
+
+        par2_score += score
+        total_num_instances += domain_sizes[domain]
+
+        score = score/domain_sizes[domain]
+        par2_scores_string += f"{domain} {score}\n"
+    par2_score /= total_num_instances
+    par2_scores_string += f"Total score {par2_score}"
+
+    with open(outputPath + "/par2_scores.txt", "w") as f:
+        f.write(par2_scores_string)
+
     with open(outputPath + "/ipc_scores.txt", "w") as f:
         f.write(ipc_scores_string)
 
@@ -284,7 +304,7 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
 
     logger.debug(f"finished {num_finished} instances, did not finish {num_unfinished} instances, {num_errored} instances errored, {num_invalid} invalid solutions\n")
     logger.debug(f"ipc-score: {total_score}")
-
+    logger.debug(f"par2-score: {par2_score}")
 
 
 def convert_relative(path: str) -> str:

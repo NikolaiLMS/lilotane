@@ -54,7 +54,7 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
                     FlatHashSet<int> newRestrictions;
                     Signature substitutedPreconditionCopy = substitutedPrecondition;
                     substitutedPreconditionCopy._usig._args[argPosition] = _htn.nameId("??_");
-                    ArgIterator iter = ArgIterator::getFullInstantiationQConst(substitutedPreconditionCopy._usig, _htn, freeArgRestrictions, argPosition);
+                    ArgIterator iter = ArgIterator::getFullInstantiation(substitutedPreconditionCopy._usig, _htn, freeArgRestrictions, true, argPosition);
                     if (iter.size() > _new_variable_domain_size_limit) continue;
                     bool reachedLimit = false;
                     for (const USignature& groundFact : iter) {
@@ -113,7 +113,7 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
             for (const auto& argPosition: _htn.getFreeArgPositions(substitutedPrecondition._usig._args)) if (!precondition._negated) {
                 if (nodeArgs.count(substitutedPrecondition._usig._args[argPosition])) {
                     FlatHashSet<int> newRestrictions;
-                    ArgIterator iter = ArgIterator::getFullInstantiationQConst(substitutedPrecondition._usig, _htn, freeArgRestrictions);
+                    ArgIterator iter = ArgIterator::getFullInstantiation(substitutedPrecondition._usig, _htn, freeArgRestrictions, true);
 
                     if (iter.size() > _new_variable_domain_size_limit_fluent) continue;
                     for (const USignature& groundFact : iter) {
@@ -187,7 +187,7 @@ bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, S
             preconditionsValid = !substitutedPrecondition._negated != !_init_state.count(substitutedPrecondition._usig);
         } else {
             preconditionsValid = false;
-            for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(substitutedPrecondition._usig, _htn, freeArgRestrictions)) {
+            for (const USignature& groundFact : ArgIterator::getFullInstantiation(substitutedPrecondition._usig, _htn, freeArgRestrictions, true)) {
                 //Log::d("Ground fact: %s\n", TOSTR(groundFact));
                 if (_init_state.count(groundFact) == !substitutedPrecondition._negated) {
                     preconditionsValid = true;
@@ -227,7 +227,7 @@ bool FactAnalysis::checkPreconditionValidityFluent(const SigSet& preconditions, 
                 preconditionsValid = countNegativeGround(foundEffectsNegative[substitutedPrecondition._usig._name_id], substitutedPrecondition._usig, freeArgRestrictions) || !_init_state.count(substitutedPrecondition._usig);
             } else {
                 preconditionsValid = false;
-                for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(substitutedPrecondition._usig, _htn, freeArgRestrictions)) {
+                for (const USignature& groundFact : ArgIterator::getFullInstantiation(substitutedPrecondition._usig, _htn, freeArgRestrictions, true)) {
                     if (countNegativeGround(foundEffectsNegative[substitutedPrecondition._usig._name_id], groundFact, freeArgRestrictions) || !_init_state.count(groundFact)) {
                         preconditionsValid = true;
                         break;

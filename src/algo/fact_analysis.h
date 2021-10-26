@@ -133,7 +133,7 @@ public:
         if (_htn.isFullyGround(usig) && !_htn.hasQConstants(usig)) return countPositiveGround(effects[usig._name_id], usig, freeArgRestrictions);
         if (effects[usig._name_id].count(usig)) return true;
         if (_pos_layer_facts.count(usig)) return true;
-        for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(usig, _htn, freeArgRestrictions)) {
+        for (const USignature& groundFact : ArgIterator::getFullInstantiation(usig, _htn, freeArgRestrictions, true)) {
             //Log::e("groundFact: %s\n", TOSTR(groundFact));
             if (countPositiveGround(effects[usig._name_id], groundFact, freeArgRestrictions)) return true;
         }
@@ -144,7 +144,7 @@ public:
         if (_pos_layer_facts.count(usig)) return true;
         if (effects.count(usig)) return true;
         for (const auto& eff: effects) {
-            for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(eff, _htn, freeArgRestrictions)) {
+            for (const USignature& groundFact : ArgIterator::getFullInstantiation(eff, _htn, freeArgRestrictions, true)) {
                 //Log::e("groundFact internal: %s\n", TOSTR(groundFact));
                 if (groundFact == usig) return true;
             }
@@ -156,7 +156,7 @@ public:
         if (_neg_layer_facts.count(usig)) return true;
         if (effects.count(usig)) return true;
         for (const auto& eff: effects) {
-            for (const USignature& groundFact : ArgIterator::getFullInstantiationQConst(eff, _htn, freeArgRestrictions)) {
+            for (const USignature& groundFact : ArgIterator::getFullInstantiation(eff, _htn, freeArgRestrictions, true)) {
                 if (groundFact == usig) return true;
             }
         }
