@@ -274,13 +274,22 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
             score += result['time_needed']
         score += (domain_sizes[domain] - len(results[domain])) * 2*1800
 
-        par2_score += score
-        total_num_instances += domain_sizes[domain]
-
         score = score/domain_sizes[domain]
+        par2_score += score
+
         par2_scores_string += f"{domain} {score}\n"
-    par2_score /= total_num_instances
     par2_scores_string += f"Total score {par2_score}"
+
+    total_coverage = 0
+    coverage_string = ""
+    for domain in results.keys():
+
+        coverage = len(results[domain])/domain_sizes[domain]
+
+        total_coverage += coverage
+
+        coverage_string += f"{domain} {coverage}\n"
+    coverage_string += f"Total coverage {total_coverage}"
 
     with open(outputPath + "/par2_scores.txt", "w") as f:
         f.write(par2_scores_string)
@@ -288,6 +297,9 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
     with open(outputPath + "/ipc_scores.txt", "w") as f:
         f.write(ipc_scores_string)
 
+    with open(outputPath + "/coverage.txt", "w") as f:
+        f.write(coverage_string)
+    
     for domain in unfinished_results.keys():
         for result in unfinished_results[domain]:
             for figure_type in figure_strings_unfinished.keys():
