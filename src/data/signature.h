@@ -133,8 +133,8 @@ struct SigVecHasher {
     }
 };
 
-typedef FlatHashSet<Signature, SignatureHasher> SigSet;
-typedef FlatHashSet<USignature, USignatureHasher> USigSet;
+typedef NodeHashSet<Signature, SignatureHasher> SigSet;
+typedef NodeHashSet<USignature, USignatureHasher> USigSet;
 
 struct SigSetHasher {
     SignatureHasher _sig_hasher;
