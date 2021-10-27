@@ -25,7 +25,7 @@ void FactAnalysis::substituteEffectsAndAdd(const SigSet& effects, Substitution& 
                 postconditions[postcondition._usig._name_id].erase(postcondition);
             }
         }
-        for (size_t argPosition = 0; argPosition< eff._usig._args.size(); argPosition++) {
+        for (size_t argPosition = 0; argPosition < eff._usig._args.size(); argPosition++) {
             if (_htn.isVariable(eff._usig._args[argPosition]) && !globalFreeArgRestrictions.count(eff._usig._args[argPosition])) {
                 eff._usig._args[argPosition] = _name_id_;
             }
@@ -78,7 +78,6 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
                     if (reachedLimit) break;
                     if (!freeArgRestrictions.count(substitutedPrecondition._usig._args[argPosition])) {
                         freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]] = newRestrictions;
-                        change = true;
                     } else {
                         FlatHashSet<int> toDelete;
                         for (const auto& constant: freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]]) {
@@ -88,7 +87,6 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
                         }
                         for (const auto& constant: toDelete) {
                             freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].erase(constant);
-                            change = true;
                         }
                     }
                     if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() == 1) {
@@ -135,7 +133,6 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
                     }
                     if (!freeArgRestrictions.count(substitutedPrecondition._usig._args[argPosition])) {
                         freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]] = newRestrictions;
-                        change = true;
                     } else {
                         FlatHashSet<int> toDelete;
                         for (const auto& constant: freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]]) {
@@ -145,7 +142,6 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
                         }
                         for (const auto& constant: toDelete) {
                             freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].erase(constant);
-                            change = true;
                         }
                     }
                     if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() == 1) {
