@@ -334,8 +334,15 @@ void FactAnalysisPreprocessing::extendPreconditions(std::vector<int>& orderedOpI
                 // Update effects with offset effects found above
                 Sig::unite(result.offsetEffects[i], effects);
             }
+            result.rigidPreconditions = _util.filterFluentPredicates(result.preconditions, _fluent_predicates);
+            result.fluentPreconditions = _util.filterRigidPredicates(result.preconditions, _fluent_predicates);
+
             // Clear unneeded cached offset effects
             result.offsetEffects.clear();
+        } else {
+            FactFrame& result = _fact_frames[opId];
+            result.rigidPreconditions = _util.filterFluentPredicates(result.preconditions, _fluent_predicates);
+            result.fluentPreconditions = _util.filterRigidPredicates(result.preconditions, _fluent_predicates);
         }
     }
     avgBranchDegreeArithmetic = int(avgBranchDegreeArithmetic/numReductions);
@@ -356,9 +363,6 @@ void FactAnalysisPreprocessing::fillPFCNodesTopDownBFS(std::vector<int>& ordered
             FactFrame& result = _fact_frames[opId];
             PFCNode tempNode;
             tempNode.sig = result.sig;
-            tempNode.effects = result.effects;
-            tempNode.rigidPreconditions = _util.filterFluentPredicates(result.preconditions, _fluent_predicates);
-            tempNode.fluentPreconditions = _util.filterRigidPredicates(result.preconditions, _fluent_predicates);
             
             std::vector<NodeHashMap<int, PFCNode>*> tempSubtasks;
             tempSubtasks.push_back(new NodeHashMap<int, PFCNode>);
@@ -401,12 +405,6 @@ void FactAnalysisPreprocessing::fillPFCNodesTopDownBFS(std::vector<int>& ordered
                                     Substitution s = Substitution(childFrame.sig._args, newChild._args);
                                     PFCNode childNode;
                                     childNode.sig = childFrame.sig;
-                                    childNode.effects = childFrame.effects;
-                                    childNode.rigidPreconditions = _util.filterFluentPredicates(childFrame.preconditions, _fluent_predicates);
-                                    childNode.fluentPreconditions = _util.filterRigidPredicates(childFrame.preconditions, _fluent_predicates);
-                                    childNode.postconditions = childFrame.postconditions;
-                                    childNode.negatedPostconditions = childFrame.negatedPostconditions;
-                                    childNode.substitute(s);
                                     std::vector<int> argsToSubstitute;
                                     std::vector<int> argSubstitutions;
                                     for (const auto& arg: newChild._args) {
@@ -418,8 +416,10 @@ void FactAnalysisPreprocessing::fillPFCNodesTopDownBFS(std::vector<int>& ordered
                                             childNode.newArgs.insert(newArgument);
                                         }
                                     }
-                                    childNode.substitute(Substitution(argsToSubstitute, argSubstitutions));
-                                    childNode.substitute(Substitution(subtaskReduction.getSignature()._args, child.sig._args));
+                                    s = s.concatenate(Substitution(argsToSubstitute, argSubstitutions));
+                                    s = s.concatenate(Substitution(subtaskReduction.getSignature()._args, child.sig._args));
+                                    childNode.substitute(s);
+                                    childNode.substitution = s;
                                     (*newSubtask)[newChild._name_id] = childNode;
                                     numNodes++;
                                 }
@@ -442,46 +442,6 @@ void FactAnalysisPreprocessing::fillPFCNodesTopDownBFS(std::vector<int>& ordered
     }
 }
 
-
-
-void FactAnalysisPreprocessing::printFactFrameBFS(int opId) {
-    FactFrame& factFrame = _fact_frames[opId];
-    Log::e("Root: %s\n", TOSTR(factFrame.sig));
-    Log::e("Root.numNodes: %i\n", factFrame.numNodes);
-
-    std::string subtaskArgsString = "Root subtaskArgs: ";
-    for (const auto& arg: factFrame.subtaskArgs) {
-        subtaskArgsString += TOSTR(arg) + std::string(", ");
-    }
-    subtaskArgsString += std::string("\n");
-    Log::e(subtaskArgsString.c_str());
-
-    std::vector<NodeHashMap<int, PFCNode>*> subtasks = factFrame.subtasks;
-    int depth = 1;
-    while (subtasks.size() > 0) {
-        Log::e("Depth %i:\n", depth);
-        std::vector<NodeHashMap<int, PFCNode>*> newSubtasks;
-        int subtaskIdx = 0;
-        for (const auto& subtask: subtasks) {
-            Log::e("Subtask %i:\n", subtaskIdx);
-            for (const auto& [id, child]: *subtask) {
-                Log::e("Child: %s\n", TOSTR(child.sig));
-                subtaskArgsString = "Child subtaskArgs: ";
-                for (const auto& arg: child.subtaskArgs) {
-                    subtaskArgsString += TOSTR(arg) + std::string(", ");
-                }
-                subtaskArgsString += std::string("\n");
-                Log::e(subtaskArgsString.c_str());
-                for (const auto& childSubtask: child.subtasks) {
-                    newSubtasks.push_back(childSubtask);
-                }
-            }
-            subtaskIdx++;
-        }
-        subtasks = newSubtasks;
-        depth++;
-    }
-}
 
 // Iterate though all operations and find all predicates occuring in any actions effects (fluent predicates)
 // to fill _fluent_predicates, and thus also implicitly identify rigid predicates.

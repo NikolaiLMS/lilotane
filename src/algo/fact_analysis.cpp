@@ -41,7 +41,7 @@ void FactAnalysis::substituteEffectsAndAdd(const SigSet& effects, Substitution& 
 bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSet& fluentPreconditions, Substitution& s, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
         FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache, FlatHashSet<int> nodeArgs,
         NodeHashMap<int, USigSet>& foundEffectsPositive, NodeHashMap<int, USigSet>& foundEffectsNegative, bool& restrictedVars, 
-        NodeHashMap<int, SigSet>& postconditions) {
+        NodeHashMap<int, SigSet>& postconditions, Substitution& globalSub) {
     bool valid = true;
     bool change = true;
     while (change && valid) {
@@ -92,6 +92,7 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
                         }
                     }
                     if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() == 1) {
+                        globalSub[substitutedPrecondition._usig._args[argPosition]] = *newRestrictions.begin();
                         s[substitutedPrecondition._usig._args[argPosition]] = *newRestrictions.begin();
                     } else if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() == 0) {
                         //Log::e("Found no possible constants for variable %s\n", TOSTR(substitutedPrecondition._usig._args[argPosition]));
@@ -148,6 +149,7 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
                         }
                     }
                     if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() == 1) {
+                        globalSub[substitutedPrecondition._usig._args[argPosition]] = *newRestrictions.begin();
                         s[substitutedPrecondition._usig._args[argPosition]] = *newRestrictions.begin();
                     } else if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() == 0) {
                         //Log::e("Found no possible constants for variable %s\n", TOSTR(substitutedPrecondition._usig._args[argPosition]));

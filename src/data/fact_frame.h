@@ -7,127 +7,13 @@
 #include "data/signature.h"
 
 struct PFCNode {
+    Substitution substitution;
     USignature sig;
-    FlatHashSet<int> subtaskArgs;
-    SigSet rigidPreconditions;
-    SigSet fluentPreconditions;
-    SigSet effects;
-    SigSet postconditions;
-    SigSet negatedPostconditions;
     std::vector<NodeHashMap<int, PFCNode>*> subtasks;
     FlatHashSet<int> newArgs;
-    int maxDepth = 0;
-    int numNodes = 1;
     int numDirectChildren = 0;
-
-    PFCNode cutDepth(int depth) const {
-        PFCNode cutNode;
-        cutNode.sig = sig;
-        cutNode.rigidPreconditions = rigidPreconditions;
-        cutNode.fluentPreconditions = fluentPreconditions;
-        cutNode.effects = effects;
-        if (depth > 0) {
-            cutNode.subtasks.reserve(subtasks.size());
-            for (size_t i = 0; i < subtasks.size(); i++) {
-                NodeHashMap<int, PFCNode>* cutSubtask = new NodeHashMap<int, PFCNode>;
-                for (const auto& [id, child]: *subtasks[i]) {
-                    PFCNode cutChild = child.cutDepth(depth-1);
-                    (*cutSubtask)[id] = cutChild;
-                    cutNode.maxDepth = cutNode.maxDepth >= cutChild.maxDepth+1 ? cutNode.maxDepth : cutChild.maxDepth+1;
-                    cutNode.numNodes += cutChild.numNodes;
-                    for (const auto& arg: cutChild.subtaskArgs) {
-                        cutNode.subtaskArgs.insert(arg);
-                    }
-                }
-                cutNode.subtasks.push_back(cutSubtask);
-            }
-        }
-        return cutNode;
-    }
-
-    void normalize(const FlatHashSet<int>& argSet, std::function<Signature(const Signature& sig, FlatHashSet<int> argSet)> normalizeFunction) {
-        SigSet normalizedPreconditions;
-        for (const auto& precond: rigidPreconditions) {
-            normalizedPreconditions.insert(normalizeFunction(precond, argSet));
-        }
-        rigidPreconditions = normalizedPreconditions;
-
-        normalizedPreconditions = SigSet();
-        for (const auto& precond: fluentPreconditions) {
-            normalizedPreconditions.insert(normalizeFunction(precond, argSet));
-        }
-        fluentPreconditions = normalizedPreconditions;
-
-        SigSet normalizedEffects;
-        for (const auto& effect: effects) {
-            normalizedEffects.insert(normalizeFunction(effect, argSet));
-        }
-        effects = normalizedEffects;
-
-        for (const auto& subtask: subtasks) {
-            std::vector<int> keyVector;
-            for (const auto& [id, child]: *subtask) {
-                keyVector.push_back(id);
-            }
-            for (int& id: keyVector) {
-                (*subtask)[id].normalize(argSet, normalizeFunction);
-            }
-        }
-    }
-
     void substitute(const Substitution& s) {
         sig = sig.substitute(s);
-    
-        FlatHashSet<int> substitutedSubtaskArgs = subtaskArgs;
-        for (const auto& arg: subtaskArgs) {
-            auto it = s.find(arg);
-            if (it != s.end()) {
-                substitutedSubtaskArgs.erase(arg);
-                substitutedSubtaskArgs.insert(it->second);
-            }
-        }
-        subtaskArgs = substitutedSubtaskArgs;
-
-        SigSet substitutedPreconditions;
-        for (const auto& precond: rigidPreconditions) {
-            substitutedPreconditions.insert(precond.substitute(s));
-        }
-        rigidPreconditions = substitutedPreconditions;
-
-        substitutedPreconditions = SigSet();
-        for (const auto& precond: fluentPreconditions) {
-            substitutedPreconditions.insert(precond.substitute(s));
-        }
-        fluentPreconditions = substitutedPreconditions;
-
-        SigSet substitutedEffects;
-        for (const auto& effect: effects) {
-            substitutedEffects.insert(effect.substitute(s));
-        }
-        effects = substitutedEffects;
-
-        SigSet substitutedPostconditions;
-        for (const auto& postcondition: postconditions) {
-            substitutedPostconditions.insert(postcondition.substitute(s));
-        }
-        postconditions = substitutedPostconditions;
-
-        SigSet substitutedNegatedPostconditions;
-        for (const auto& postcondition: negatedPostconditions) {
-            substitutedNegatedPostconditions.insert(postcondition.substitute(s));
-        }
-        negatedPostconditions = substitutedNegatedPostconditions;
-
-
-        for (const auto& subtask: subtasks) {
-            std::vector<int> keyVector;
-            for (const auto& [id, child]: *subtask) {
-                keyVector.push_back(id);
-            }
-            for (int& id: keyVector) {
-                (*subtask)[id].substitute(s);
-            }
-        }
     }
 };
 
@@ -136,6 +22,8 @@ struct FactFrame {
     std::vector<NodeHashMap<std::pair<SigSet, SigSet>, SigSet, SigSetPairHasher, SigSetPairEquals>> conditionalEffects;
     USignature sig;
     SigSet preconditions;
+    SigSet rigidPreconditions;
+    SigSet fluentPreconditions;
     SigSet effects;
     SigSet negatedPostconditions;
     SigSet postconditions;

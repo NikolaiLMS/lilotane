@@ -266,13 +266,12 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
     ipc_scores_string += f"Total score {total_score}"
 
     par2_score = 0
-    total_num_instances = 0
     par2_scores_string = ""
     for domain in results.keys():
         score = 0.0
         for result in results[domain]:
             score += result['time_needed']
-        score += (domain_sizes[domain] - len(results[domain])) * 2*1800
+        score += (domain_sizes[domain] - len(results[domain])) * 2*timeout
 
         score = score/domain_sizes[domain]
         par2_score += score

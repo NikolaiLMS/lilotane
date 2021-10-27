@@ -124,6 +124,17 @@ public:
         bool firstChild = true;
 
         for (const auto& [id, child]: *children) {
+            FactFrame& ff = _fact_frames[id];
+            Substitution newSub = child.substitution.concatenate(s);
+            USignature substitutedFactFrameSig = ff.sig.substitute(child.substitution.concatenate(s));
+            USignature substitutedNodeSig = child.sig.substitute(s);
+            if (substitutedNodeSig != substitutedFactFrameSig) {
+                Log::e("sub pfcNode sig: %s\n", TOSTR(substitutedNodeSig));
+                Log::e("sub factframe sig: %s\n", TOSTR(substitutedFactFrameSig));
+                Log::e("pfcNode sig: %s\n", TOSTR(child.sig));
+                Log::e("factframe sig: %s\n", TOSTR(ff.sig));
+            }
+
             // Log::e("Checking child %s at depth %i\n", TOSTR(child.sig.substitute(s)), _max_depth - depth);
             // Log::e("%i\n", child.sig._name_id);
             bool childValid = false;
@@ -131,11 +142,11 @@ public:
             NodeHashMap<int, USigSet> childEffectsNegative = foundEffectsNegativeCopy;
             NodeHashMap<int, SigSet> childPostconditions = oldPostconditions;
             bool restrictedVars = false;
-            bool preconditionsValid = restrictNewVariables(child.rigidPreconditions, child.fluentPreconditions, s, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache(), 
-                child.newArgs, foundEffectsPositiveCopy, foundEffectsNegativeCopy, restrictedVars, oldPostconditions);
-            if (preconditionsValid) preconditionsValid = checkPreconditionValidityRigid(child.rigidPreconditions, s, globalFreeArgRestrictions);
+            bool preconditionsValid = restrictNewVariables(ff.rigidPreconditions, ff.fluentPreconditions, newSub, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache(), 
+                child.newArgs, foundEffectsPositiveCopy, foundEffectsNegativeCopy, restrictedVars, oldPostconditions, s);
+            if (preconditionsValid) preconditionsValid = checkPreconditionValidityRigid(ff.rigidPreconditions, newSub, globalFreeArgRestrictions);
             if (preconditionsValid && _check_fluent_preconditions) {
-                preconditionsValid = checkPreconditionValidityFluent(child.fluentPreconditions, childEffectsPositive, childEffectsNegative, s, globalFreeArgRestrictions, oldPostconditions);
+                preconditionsValid = checkPreconditionValidityFluent(ff.fluentPreconditions, childEffectsPositive, childEffectsNegative, newSub, globalFreeArgRestrictions, oldPostconditions);
             }
             if (preconditionsValid) {
                 if (restrictedVars) {
@@ -143,13 +154,13 @@ public:
                 }
                 childValid = true;
                 if (child.subtasks.size() == 0 || _nodes_left < child.numDirectChildren) {
-                    substituteEffectsAndAdd(child.effects, s, foundEffectsPos, foundEffectsNeg, childPostconditions, globalFreeArgRestrictions);
-                    for (const auto& postcondition: child.postconditions) {
-                        childPostconditions[postcondition._usig._name_id].insert(postcondition.substitute(s));
+                    substituteEffectsAndAdd(ff.effects, newSub, foundEffectsPos, foundEffectsNeg, childPostconditions, globalFreeArgRestrictions);
+                    for (const auto& postcondition: ff.postconditions) {
+                        childPostconditions[postcondition._usig._name_id].insert(postcondition.substitute(newSub));
                         // Log::e("Adding postcondition %s\n", TOSTR(postcondition));
                     }
-                    for (const auto& postcondition: child.negatedPostconditions) {
-                        childPostconditions[postcondition._usig._name_id].insert(postcondition.substitute(s));
+                    for (const auto& postcondition: ff.negatedPostconditions) {
+                        childPostconditions[postcondition._usig._name_id].insert(postcondition.substitute(newSub));
                     }
                 } else {
                     _nodes_left -= child.numDirectChildren;

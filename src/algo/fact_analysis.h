@@ -251,7 +251,7 @@ public:
         NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
         FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache, FlatHashSet<int> nodeArgs,
         NodeHashMap<int, USigSet>& foundEffectsPositive, NodeHashMap<int, USigSet>& foundEffectsNegative, bool& restrictedVars, 
-        NodeHashMap<int, SigSet>& postconditions);
+        NodeHashMap<int, SigSet>& postconditions, Substitution& globalSub);
     USigSet removeDominated(const NodeHashMap<int, USigSet>& originalSignatures);
 
     SigSet groundEffects(const NodeHashMap<int, USigSet>& positiveEffects, const NodeHashMap<int, USigSet>& negativeEffects, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions);
