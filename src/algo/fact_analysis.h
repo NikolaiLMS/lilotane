@@ -243,15 +243,15 @@ public:
 
     void substituteEffectsAndAdd(const SigSet& effects, Substitution& s, NodeHashMap<int, USigSet>& positiveEffects,
         NodeHashMap<int, USigSet>& negativeEffects, NodeHashMap<int, SigSet>& postconditions, NodeHashMap<int, FlatHashSet<int>>& globalFreeArgRestrictions);
-    bool checkPreconditionValidityRigid(const SigSet& preconditions, Substitution& s, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions);
-    bool checkPreconditionValidityFluent(const SigSet& preconditions, NodeHashMap<int, USigSet>& foundEffectsPositive, 
-        NodeHashMap<int, USigSet>& foundEffectsNegative, Substitution& s, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions,
+    bool checkPreconditionValidityRigid(const SigSet& preconditions, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions);
+    bool checkPreconditionValidityFluent(SigSet& preconditions, NodeHashMap<int, USigSet>& foundEffectsPositive, 
+        NodeHashMap<int, USigSet>& foundEffectsNegative, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions,
         NodeHashMap<int, SigSet>& postconditions);
     
-    bool restrictNewVariables(const SigSet& preconditions, const SigSet& fluentPreconditions, Substitution& s, 
+    bool restrictNewVariables(SigSet& preconditions, SigSet& fluentPreconditions, Substitution& s, 
         NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
         FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache, FlatHashSet<int> nodeArgs,
-        NodeHashMap<int, USigSet>& foundEffectsPositive, NodeHashMap<int, USigSet>& foundEffectsNegative, bool& restrictedVars, 
+        NodeHashMap<int, USigSet>& foundEffectsPositive, NodeHashMap<int, USigSet>& foundEffectsNegative, 
         NodeHashMap<int, SigSet>& postconditions, Substitution& globalSub);
     USigSet removeDominated(const NodeHashMap<int, USigSet>& originalSignatures);
 

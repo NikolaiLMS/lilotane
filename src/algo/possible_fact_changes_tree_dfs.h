@@ -126,14 +126,6 @@ public:
         for (const auto& [id, child]: *children) {
             FactFrame& ff = _fact_frames[id];
             Substitution newSub = child.substitution.concatenate(s);
-            USignature substitutedFactFrameSig = ff.sig.substitute(child.substitution.concatenate(s));
-            USignature substitutedNodeSig = child.sig.substitute(s);
-            if (substitutedNodeSig != substitutedFactFrameSig) {
-                Log::e("sub pfcNode sig: %s\n", TOSTR(substitutedNodeSig));
-                Log::e("sub factframe sig: %s\n", TOSTR(substitutedFactFrameSig));
-                Log::e("pfcNode sig: %s\n", TOSTR(child.sig));
-                Log::e("factframe sig: %s\n", TOSTR(ff.sig));
-            }
 
             // Log::e("Checking child %s at depth %i\n", TOSTR(child.sig.substitute(s)), _max_depth - depth);
             // Log::e("%i\n", child.sig._name_id);
@@ -141,17 +133,17 @@ public:
             NodeHashMap<int, USigSet> childEffectsPositive = foundEffectsPositiveCopy;
             NodeHashMap<int, USigSet> childEffectsNegative = foundEffectsNegativeCopy;
             NodeHashMap<int, SigSet> childPostconditions = oldPostconditions;
-            bool restrictedVars = false;
-            bool preconditionsValid = restrictNewVariables(ff.rigidPreconditions, ff.fluentPreconditions, newSub, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache(), 
-                child.newArgs, foundEffectsPositiveCopy, foundEffectsNegativeCopy, restrictedVars, oldPostconditions, s);
-            if (preconditionsValid) preconditionsValid = checkPreconditionValidityRigid(ff.rigidPreconditions, newSub, globalFreeArgRestrictions);
+
+            SigSet subtitutedRigidPreconditions = ff.rigidPreconditions;
+            SigSet subtitutedFluentPreconditions = ff.fluentPreconditions;
+
+            bool preconditionsValid = restrictNewVariables(subtitutedRigidPreconditions, subtitutedFluentPreconditions, newSub, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache(), 
+                child.newArgs, foundEffectsPositiveCopy, foundEffectsNegativeCopy, oldPostconditions, s);
+            if (preconditionsValid) preconditionsValid = checkPreconditionValidityRigid(subtitutedRigidPreconditions, globalFreeArgRestrictions);
             if (preconditionsValid && _check_fluent_preconditions) {
-                preconditionsValid = checkPreconditionValidityFluent(ff.fluentPreconditions, childEffectsPositive, childEffectsNegative, newSub, globalFreeArgRestrictions, oldPostconditions);
+                preconditionsValid = checkPreconditionValidityFluent(subtitutedFluentPreconditions, childEffectsPositive, childEffectsNegative, globalFreeArgRestrictions, oldPostconditions);
             }
             if (preconditionsValid) {
-                if (restrictedVars) {
-                    _nodes_left += _restrict_vars_increase;
-                }
                 childValid = true;
                 if (child.subtasks.size() == 0 || _nodes_left < child.numDirectChildren) {
                     substituteEffectsAndAdd(ff.effects, newSub, foundEffectsPos, foundEffectsNeg, childPostconditions, globalFreeArgRestrictions);

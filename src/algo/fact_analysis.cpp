@@ -38,138 +38,149 @@ void FactAnalysis::substituteEffectsAndAdd(const SigSet& effects, Substitution& 
     }
 }
 
-bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSet& fluentPreconditions, Substitution& s, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
+bool FactAnalysis::restrictNewVariables(SigSet& preconditions, SigSet& fluentPreconditions, Substitution& s, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
         FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache, FlatHashSet<int> nodeArgs,
-        NodeHashMap<int, USigSet>& foundEffectsPositive, NodeHashMap<int, USigSet>& foundEffectsNegative, bool& restrictedVars, 
+        NodeHashMap<int, USigSet>& foundEffectsPositive, NodeHashMap<int, USigSet>& foundEffectsNegative,
         NodeHashMap<int, SigSet>& postconditions, Substitution& globalSub) {
+    //Log::e("restrict var call\n");
     bool valid = true;
-    bool change = true;
-    while (change && valid) {
-        change = false;
-        for (const auto& precondition: preconditions) if (!precondition._negated) {
-            Signature substitutedPrecondition = precondition.substitute(s);
-            //Log::e("Checking rigid precondition %s\n", TOSTR(substitutedPrecondition));
-            for (const auto& argPosition: _htn.getFreeArgPositions(substitutedPrecondition._usig._args)) {
+    SigSet preconditionsLeft;
+    //Log::e("Unsubstituted rigid preconditions: %s\n", TOSTR(preconditions));
+    for (auto& precondition: preconditions) {
+        Signature substitutedPrecondition = precondition.substitute(s);
+        preconditionsLeft.insert(substitutedPrecondition);
+        if (substitutedPrecondition._negated) {
+            continue;
+        }
+        //Log::e("Checking rigid precondition %s\n", TOSTR(substitutedPrecondition));
+        for (size_t argPosition = 0; argPosition < substitutedPrecondition._usig._args.size(); argPosition++) 
                 if (nodeArgs.count(substitutedPrecondition._usig._args[argPosition])) {
-                    FlatHashSet<int> newRestrictions;
-                    Signature substitutedPreconditionCopy = substitutedPrecondition;
-                    substitutedPreconditionCopy._usig._args[argPosition] = _name_id_;
-                    ArgIterator iter = ArgIterator::getFullInstantiation(substitutedPreconditionCopy._usig, _htn, freeArgRestrictions, true, argPosition);
-                    if (iter.size() > _new_variable_domain_size_limit) continue;
-                    bool reachedLimit = false;
-                    for (const USignature& groundFact : iter) {
-                        //Log::d("Ground fact: %s\n", TOSTR(groundFact));
-                        if (rigid_predicate_cache.count(substitutedPrecondition._usig._name_id) 
-                        && rigid_predicate_cache[substitutedPrecondition._usig._name_id].count(groundFact)) {
-                            if (rigid_predicate_cache[substitutedPrecondition._usig._name_id][groundFact].size() > _new_variable_domain_size_limit) {
+            FlatHashSet<int> newRestrictions;
+            int actualArg = substitutedPrecondition._usig._args[argPosition];
+            substitutedPrecondition._usig._args[argPosition] = _name_id_;
+            ArgIterator iter = ArgIterator::getFullInstantiation(substitutedPrecondition._usig, _htn, freeArgRestrictions, true, argPosition);
+            substitutedPrecondition._usig._args[argPosition] = actualArg;
+            if (iter.size() > _new_variable_domain_size_limit) continue;
+            bool reachedLimit = false;
+            for (const USignature& groundFact : iter) {
+                //Log::d("Ground fact: %s\n", TOSTR(groundFact));
+                if (rigid_predicate_cache.count(substitutedPrecondition._usig._name_id) 
+                && rigid_predicate_cache[substitutedPrecondition._usig._name_id].count(groundFact)) {
+                    if (rigid_predicate_cache[substitutedPrecondition._usig._name_id][groundFact].size() > _new_variable_domain_size_limit) {
+                        reachedLimit = true;
+                        break;
+                    } else if (newRestrictions.size() == 0) {
+                        newRestrictions = rigid_predicate_cache[substitutedPrecondition._usig._name_id][groundFact];
+                    } else {
+                        for (const auto& constant: rigid_predicate_cache[substitutedPrecondition._usig._name_id][groundFact]) {
+                            newRestrictions.insert(constant);
+                            if (newRestrictions.size() > _new_variable_domain_size_limit_fluent) {
                                 reachedLimit = true;
                                 break;
                             }
-                            for (const auto& constant: rigid_predicate_cache[substitutedPrecondition._usig._name_id][groundFact]) {
-                                newRestrictions.insert(constant);
-                                if (newRestrictions.size() > _new_variable_domain_size_limit_fluent) {
-                                    reachedLimit = true;
-                                    break;
-                                }
-                            }
-                            if (reachedLimit) break;
                         }
                     }
                     if (reachedLimit) break;
-                    if (!freeArgRestrictions.count(substitutedPrecondition._usig._args[argPosition])) {
-                        freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]] = newRestrictions;
-                    } else {
-                        FlatHashSet<int> toDelete;
-                        for (const auto& constant: freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]]) {
-                            if (!newRestrictions.count(constant)) {
-                                toDelete;
-                            }
-                        }
-                        for (const auto& constant: toDelete) {
-                            freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].erase(constant);
-                        }
-                    }
-                    if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() == 1) {
-                        globalSub[substitutedPrecondition._usig._args[argPosition]] = *newRestrictions.begin();
-                        s[substitutedPrecondition._usig._args[argPosition]] = *newRestrictions.begin();
-                    } else if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() == 0) {
-                        //Log::e("Found no possible constants for variable %s\n", TOSTR(substitutedPrecondition._usig._args[argPosition]));
-                        _invalid_rigid_preconditions_found++;
-                        freeArgRestrictions.erase(substitutedPrecondition._usig._args[argPosition]);
-                        valid = false;
-                        break;
-                    }
                 }
             }
-            if (!valid) {
-                break;
-            }
-        }
-        if (!valid) break;
-        for (const auto& precondition: fluentPreconditions) if (!precondition._negated) {
-            Signature substitutedPrecondition = precondition.substitute(s);
-            //Log::e("Checking fluent precondition %s\n", TOSTR(substitutedPrecondition));
-            for (const auto& argPosition: _htn.getFreeArgPositions(substitutedPrecondition._usig._args)) if (!precondition._negated) {
-                if (nodeArgs.count(substitutedPrecondition._usig._args[argPosition])) {
-                    FlatHashSet<int> newRestrictions;
-                    ArgIterator iter = ArgIterator::getFullInstantiation(substitutedPrecondition._usig, _htn, freeArgRestrictions, true);
-
-                    if (iter.size() > _new_variable_domain_size_limit_fluent) continue;
-                    for (const USignature& groundFact : iter) {
-                        //Log::e("Ground fact: %s\n", TOSTR(groundFact));
-                        // if (postconditions.count(substitutedPrecondition._usig._name_id) 
-                        //     && postconditions[substitutedPrecondition._usig._name_id].count(groundFact.toSignature(!substitutedPrecondition._negated))) {
-                        //     continue;
-                        // }
-                        if (countPositiveGround(foundEffectsPositive[groundFact._name_id], groundFact, freeArgRestrictions)) {
-                            newRestrictions.insert(groundFact._args[argPosition]);
-                            if (newRestrictions.size() > _new_variable_domain_size_limit_fluent) {
-                                break;
-                            }
-                        }
-                    }
-                    if (newRestrictions.size() > _new_variable_domain_size_limit_fluent) {
-                        continue;
-                    }
-                    if (!freeArgRestrictions.count(substitutedPrecondition._usig._args[argPosition])) {
-                        freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]] = newRestrictions;
-                    } else {
-                        FlatHashSet<int> toDelete;
-                        for (const auto& constant: freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]]) {
-                            if (!newRestrictions.count(constant)) {
-                                toDelete;
-                            }
-                        }
-                        for (const auto& constant: toDelete) {
-                            freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].erase(constant);
-                        }
-                    }
-                    if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() == 1) {
-                        globalSub[substitutedPrecondition._usig._args[argPosition]] = *newRestrictions.begin();
-                        s[substitutedPrecondition._usig._args[argPosition]] = *newRestrictions.begin();
-                    } else if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() == 0) {
-                        //Log::e("Found no possible constants for variable %s\n", TOSTR(substitutedPrecondition._usig._args[argPosition]));
-                        _invalid_fluent_preconditions_found++;
-                        freeArgRestrictions.erase(substitutedPrecondition._usig._args[argPosition]);
-                        valid = false;
-                        break;
+            if (reachedLimit) break;
+            if (!freeArgRestrictions.count(substitutedPrecondition._usig._args[argPosition])) {
+                freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]] = newRestrictions;
+            } else {
+                FlatHashSet<int> toDelete;
+                for (const auto& constant: freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]]) {
+                    if (!newRestrictions.count(constant)) {
+                        toDelete;
                     }
                 }
+                for (const auto& constant: toDelete) {
+                    freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].erase(constant);
+                }
             }
-            if (!valid) {
+            if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() > 0) {
+                preconditionsLeft.erase(substitutedPrecondition);
+            } else {
+                //Log::e("Found no possible constants for variable %s\n", TOSTR(substitutedPrecondition._usig._args[argPosition]));
+                _invalid_rigid_preconditions_found++;
+                freeArgRestrictions.erase(substitutedPrecondition._usig._args[argPosition]);
+                valid = false;
                 break;
             }
+            if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() == 1) {
+                globalSub[substitutedPrecondition._usig._args[argPosition]] = *newRestrictions.begin();
+                s[substitutedPrecondition._usig._args[argPosition]] = *newRestrictions.begin();
+            }
         }
-        if (change) restrictedVars = true;
+        if (!valid) {
+            break;
+        }
     }
+    if (!valid) return valid;
+    //Log::e("Substituted rigid preconditions: %s\n", TOSTR(preconditions));
+    preconditions = preconditionsLeft;
+    //Log::e("Reduced Substituted rigid preconditions: %s\n", TOSTR(preconditions));
+    preconditionsLeft.clear();
+
+    for (auto& precondition: fluentPreconditions) {
+        Signature substitutedPrecondition = precondition.substitute(s);
+        preconditionsLeft.insert(substitutedPrecondition);
+        if (substitutedPrecondition._negated) continue;
+        //Log::e("Checking fluent precondition %s\n", TOSTR(substitutedPrecondition));
+        for (size_t argPosition = 0; argPosition < substitutedPrecondition._usig._args.size(); argPosition++) 
+                if (nodeArgs.count(substitutedPrecondition._usig._args[argPosition])) {
+            FlatHashSet<int> newRestrictions;
+            ArgIterator iter = ArgIterator::getFullInstantiation(substitutedPrecondition._usig, _htn, freeArgRestrictions, true);
+
+            if (iter.size() > _new_variable_domain_size_limit_fluent) continue;
+            for (const USignature& groundFact : iter) {
+                if (countPositiveGround(foundEffectsPositive[groundFact._name_id], groundFact, freeArgRestrictions)) {
+                    newRestrictions.insert(groundFact._args[argPosition]);
+                    if (newRestrictions.size() > _new_variable_domain_size_limit_fluent) {
+                        break;
+                    }
+                }
+            }
+            if (newRestrictions.size() > _new_variable_domain_size_limit_fluent) continue;
+            if (!freeArgRestrictions.count(substitutedPrecondition._usig._args[argPosition])) {
+                freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]] = newRestrictions;
+            } else {
+                FlatHashSet<int> toDelete;
+                for (const auto& constant: freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]]) {
+                    if (!newRestrictions.count(constant)) {
+                        toDelete;
+                    }
+                }
+                for (const auto& constant: toDelete) {
+                    freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].erase(constant);
+                }
+            }
+            if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() > 0) {
+                preconditionsLeft.erase(substitutedPrecondition);
+            } else {
+                //Log::e("Found no possible constants for variable %s\n", TOSTR(substitutedPrecondition._usig._args[argPosition]));
+                _invalid_fluent_preconditions_found++;
+                freeArgRestrictions.erase(substitutedPrecondition._usig._args[argPosition]);
+                valid = false;
+                break;
+            }
+            if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() == 1) {
+                globalSub[substitutedPrecondition._usig._args[argPosition]] = *newRestrictions.begin();
+                s[substitutedPrecondition._usig._args[argPosition]] = *newRestrictions.begin();
+            }
+        }
+        if (!valid) {
+            break;
+        }
+    }
+    if (!valid) return valid;
+    fluentPreconditions = preconditionsLeft;
     return valid;
 }
 
-bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, Substitution& s, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
+bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
     bool preconditionsValid = true;
     // Check if any precondition is rigid and not valid in the initState
-    for (const auto& precondition : preconditions) {
-        Signature substitutedPrecondition = precondition.substitute(s);
+    for (const auto& substitutedPrecondition : preconditions) {
         //Log::e("checking rigid precondition: %s\n", TOSTR(substitutedPrecondition));
         bool hasUnboundArg = false;
         std::vector<int> freeArgPositions;
@@ -204,12 +215,11 @@ bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, S
     return preconditionsValid;
 }
 
-bool FactAnalysis::checkPreconditionValidityFluent(const SigSet& preconditions, NodeHashMap<int, USigSet>& foundEffectsPositive, 
-    NodeHashMap<int, USigSet>& foundEffectsNegative, Substitution& s, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions,
+bool FactAnalysis::checkPreconditionValidityFluent(SigSet& preconditions, NodeHashMap<int, USigSet>& foundEffectsPositive, 
+    NodeHashMap<int, USigSet>& foundEffectsNegative, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions,
     NodeHashMap<int, SigSet>& postconditions) {
     bool preconditionsValid = true;
-    for (const auto& precondition : preconditions) {
-        Signature substitutedPrecondition = precondition.substitute(s);
+    for (auto& substitutedPrecondition : preconditions) {
         //Log::e("Checking fluent precondition: %s\n", TOSTR(substitutedPrecondition));
         substitutedPrecondition.negate();
         if (postconditions[substitutedPrecondition._usig._name_id].count(substitutedPrecondition)){
