@@ -27,7 +27,7 @@ void FactAnalysis::substituteEffectsAndAdd(const SigSet& effects, Substitution& 
         }
         for (size_t argPosition = 0; argPosition< eff._usig._args.size(); argPosition++) {
             if (_htn.isVariable(eff._usig._args[argPosition]) && !globalFreeArgRestrictions.count(eff._usig._args[argPosition])) {
-                eff._usig._args[argPosition] = _htn.nameId("??_");
+                eff._usig._args[argPosition] = _name_id_;
             }
         }
         if (eff._negated) {
@@ -53,7 +53,7 @@ bool FactAnalysis::restrictNewVariables(const SigSet& preconditions, const SigSe
                 if (nodeArgs.count(substitutedPrecondition._usig._args[argPosition])) {
                     FlatHashSet<int> newRestrictions;
                     Signature substitutedPreconditionCopy = substitutedPrecondition;
-                    substitutedPreconditionCopy._usig._args[argPosition] = _htn.nameId("??_");
+                    substitutedPreconditionCopy._usig._args[argPosition] = _name_id_;
                     ArgIterator iter = ArgIterator::getFullInstantiation(substitutedPreconditionCopy._usig, _htn, freeArgRestrictions, true, argPosition);
                     if (iter.size() > _new_variable_domain_size_limit) continue;
                     bool reachedLimit = false;
@@ -178,7 +178,7 @@ bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, S
         bool hasUnboundArg = false;
         std::vector<int> freeArgPositions;
         for (const auto& argPosition: _htn.getFreeArgPositions(substitutedPrecondition._usig._args)) {
-            if (substitutedPrecondition._usig._args[argPosition] != _htn.nameId("??_")) {
+            if (substitutedPrecondition._usig._args[argPosition] != _name_id_) {
                 freeArgPositions.push_back(argPosition);
             } else {
                 hasUnboundArg = true;
