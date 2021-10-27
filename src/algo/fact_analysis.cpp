@@ -73,7 +73,7 @@ bool FactAnalysis::restrictNewVariables(SigSet& preconditions, SigSet& fluentPre
                     } else {
                         for (const auto& constant: rigid_predicate_cache[substitutedPrecondition._usig._name_id][groundFact]) {
                             newRestrictions.insert(constant);
-                            if (newRestrictions.size() > _new_variable_domain_size_limit_fluent) {
+                            if (newRestrictions.size() > _new_variable_domain_size_limit) {
                                 reachedLimit = true;
                                 break;
                             }
@@ -129,16 +129,16 @@ bool FactAnalysis::restrictNewVariables(SigSet& preconditions, SigSet& fluentPre
             FlatHashSet<int> newRestrictions;
             ArgIterator iter = ArgIterator::getFullInstantiation(substitutedPrecondition._usig, _htn, freeArgRestrictions, true);
 
-            if (iter.size() > _new_variable_domain_size_limit_fluent) continue;
+            if (iter.size() > _new_variable_domain_size_limit) continue;
             for (const USignature& groundFact : iter) {
                 if (countPositiveGround(foundEffectsPositive[groundFact._name_id], groundFact, freeArgRestrictions)) {
                     newRestrictions.insert(groundFact._args[argPosition]);
-                    if (newRestrictions.size() > _new_variable_domain_size_limit_fluent) {
+                    if (newRestrictions.size() > _new_variable_domain_size_limit) {
                         break;
                     }
                 }
             }
-            if (newRestrictions.size() > _new_variable_domain_size_limit_fluent) continue;
+            if (newRestrictions.size() > _new_variable_domain_size_limit) continue;
             if (!freeArgRestrictions.count(substitutedPrecondition._usig._args[argPosition])) {
                 freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]] = newRestrictions;
             } else {

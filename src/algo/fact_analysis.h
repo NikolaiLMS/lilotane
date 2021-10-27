@@ -40,16 +40,13 @@ protected:
     USigSet _neg_layer_facts;
     
     int _new_variable_domain_size_limit = 1;
-    int _new_variable_domain_size_limit_fluent = 1;
 
     NodeHashMap<int, USigSet> _final_effects_positive;
     NodeHashMap<int, USigSet> _final_effects_negative;
-    bool _restrict_negated;
     int _name_id_;
 public:
     FactAnalysis(HtnInstance& htn, Parameters& params) : _htn(htn), _traversal(htn), _init_state(htn.getInitState()), _util(htn, _fact_frames, _traversal), 
-        _new_variable_domain_size_limit(params.getIntParam("pfcRestrictLimit")), _new_variable_domain_size_limit_fluent(params.getIntParam("pfcRestrictLimitFluent")),
-        _restrict_negated(bool(params.getIntParam("pfcRestrictNegated"))), _name_id_(_htn.nameId("??_")) {
+        _new_variable_domain_size_limit(params.getIntParam("pfcRestrictLimit")), _name_id_(_htn.nameId("??_")) {
         resetReachability();
     }
 
