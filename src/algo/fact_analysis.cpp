@@ -99,15 +99,16 @@ bool FactAnalysis::restrictNewVariables(SigSet& preconditions, SigSet& fluentPre
             if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() > 0) {
                 preconditionsToRemove.insert(substitutedPrecondition);
             } else {
-                //Log::e("Found no possible constants for variable %s\n", TOSTR(substitutedPrecondition._usig._args[argPosition]));
+                //Log::e("Found no possible constants for precondition %s\n", TOSTR(substitutedPrecondition));
                 _invalid_rigid_preconditions_found++;
                 freeArgRestrictions.erase(substitutedPrecondition._usig._args[argPosition]);
                 valid = false;
                 break;
             }
             if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() == 1) {
-                globalSub[substitutedPrecondition._usig._args[argPosition]] = *newRestrictions.begin();
-                s[substitutedPrecondition._usig._args[argPosition]] = *newRestrictions.begin();
+                int singleConstant = *freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].begin();
+                globalSub[substitutedPrecondition._usig._args[argPosition]] = singleConstant;
+                s[substitutedPrecondition._usig._args[argPosition]] = singleConstant;
             }
         }
         if (!valid) {
@@ -155,15 +156,16 @@ bool FactAnalysis::restrictNewVariables(SigSet& preconditions, SigSet& fluentPre
             if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() > 0) {
                 preconditionsToRemove.insert(substitutedPrecondition);
             } else {
-                //Log::e("Found no possible constants for variable %s\n", TOSTR(substitutedPrecondition._usig._args[argPosition]));
+                //Log::e("Found no possible constants for precondition %s\n", TOSTR(substitutedPrecondition));
                 _invalid_fluent_preconditions_found++;
                 freeArgRestrictions.erase(substitutedPrecondition._usig._args[argPosition]);
                 valid = false;
                 break;
             }
             if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() == 1) {
-                globalSub[substitutedPrecondition._usig._args[argPosition]] = *newRestrictions.begin();
-                s[substitutedPrecondition._usig._args[argPosition]] = *newRestrictions.begin();
+                int singleConstant = *freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].begin();
+                globalSub[substitutedPrecondition._usig._args[argPosition]] = singleConstant;
+                s[substitutedPrecondition._usig._args[argPosition]] = singleConstant;
             }
         }
         if (!valid) {
