@@ -44,11 +44,10 @@ bool FactAnalysis::restrictNewVariables(SigSet& preconditions, SigSet& fluentPre
         NodeHashMap<int, SigSet>& postconditions, Substitution& globalSub) {
     //Log::e("restrict var call\n");
     bool valid = true;
-    SigSet preconditionsLeft;
+    SigSet preconditionsToRemove;
     //Log::e("Unsubstituted rigid preconditions: %s\n", TOSTR(preconditions));
-    for (auto& precondition: preconditions) {
-        Signature substitutedPrecondition = precondition.substitute(s);
-        preconditionsLeft.insert(substitutedPrecondition);
+    for (auto& substitutedPrecondition: preconditions) {
+        substitutedPrecondition.apply(s);
         if (substitutedPrecondition._negated) {
             continue;
         }
@@ -98,7 +97,7 @@ bool FactAnalysis::restrictNewVariables(SigSet& preconditions, SigSet& fluentPre
                 }
             }
             if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() > 0) {
-                preconditionsLeft.erase(substitutedPrecondition);
+                preconditionsToRemove.insert(substitutedPrecondition);
             } else {
                 //Log::e("Found no possible constants for variable %s\n", TOSTR(substitutedPrecondition._usig._args[argPosition]));
                 _invalid_rigid_preconditions_found++;
@@ -117,13 +116,12 @@ bool FactAnalysis::restrictNewVariables(SigSet& preconditions, SigSet& fluentPre
     }
     if (!valid) return valid;
     //Log::e("Substituted rigid preconditions: %s\n", TOSTR(preconditions));
-    preconditions = preconditionsLeft;
+    for (const auto& precondition: preconditionsToRemove) preconditions.erase(precondition);
     //Log::e("Reduced Substituted rigid preconditions: %s\n", TOSTR(preconditions));
-    preconditionsLeft.clear();
+    preconditionsToRemove.clear();
 
-    for (auto& precondition: fluentPreconditions) {
-        Signature substitutedPrecondition = precondition.substitute(s);
-        preconditionsLeft.insert(substitutedPrecondition);
+    for (auto& substitutedPrecondition: fluentPreconditions) {
+        substitutedPrecondition.apply(s);
         if (substitutedPrecondition._negated) continue;
         //Log::e("Checking fluent precondition %s\n", TOSTR(substitutedPrecondition));
         for (size_t argPosition = 0; argPosition < substitutedPrecondition._usig._args.size(); argPosition++) 
@@ -155,7 +153,7 @@ bool FactAnalysis::restrictNewVariables(SigSet& preconditions, SigSet& fluentPre
                 }
             }
             if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() > 0) {
-                preconditionsLeft.erase(substitutedPrecondition);
+                preconditionsToRemove.insert(substitutedPrecondition);
             } else {
                 //Log::e("Found no possible constants for variable %s\n", TOSTR(substitutedPrecondition._usig._args[argPosition]));
                 _invalid_fluent_preconditions_found++;
@@ -173,7 +171,9 @@ bool FactAnalysis::restrictNewVariables(SigSet& preconditions, SigSet& fluentPre
         }
     }
     if (!valid) return valid;
-    fluentPreconditions = preconditionsLeft;
+
+    for (const auto& precondition: preconditionsToRemove) fluentPreconditions.erase(precondition);
+
     return valid;
 }
 
