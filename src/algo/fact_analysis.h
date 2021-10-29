@@ -33,7 +33,10 @@ protected:
     USigSet _init_state;
     int _rigid_predicates_matched = 0;
     int _invalid_rigid_preconditions_found = 0;
+    int _invalid_rigid_preconditions_found_varrestrictions = 0;
     int _invalid_fluent_preconditions_found = 0;
+    int _invalid_fluent_preconditions_found_varrestrictions = 0;
+    int _invalid_fluent_preconditions_found_via_postconditions = 0;
     int _invalid_subtasks_found = 0;
     HtnInstance& _htn;
     USigSet _pos_layer_facts;
@@ -82,16 +85,24 @@ public:
         return _invalid_rigid_preconditions_found;
     }
 
+    int getInvalidRigidPreconditionsFoundByVarRestriction() {
+        return _invalid_rigid_preconditions_found_varrestrictions;
+    }
+
     int getInvalidFluentPreconditionsFound() {
         return _invalid_fluent_preconditions_found;
     }
 
-    int getInvalidSubtasksFound() {
-        return _invalid_subtasks_found;
+    int getInvalidFluentPreconditionsFoundByVarRestriction() {
+        return _invalid_fluent_preconditions_found_varrestrictions;
     }
 
-    int getNumEffectsErasedByPostconditions() {
-        return _util.getNumEffectsErasedByPostconditions();
+    int getInvalidFluentPreconditionsFoundViaPostconditions() {
+        return _invalid_fluent_preconditions_found_via_postconditions;
+    }
+
+    int getInvalidSubtasksFound() {
+        return _invalid_subtasks_found;
     }
 
    int getNumEffectsReductions() {

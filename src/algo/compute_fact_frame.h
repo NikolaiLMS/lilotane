@@ -45,6 +45,26 @@ public:
     }
 
 private:
+    SigSet filterFluentPredicates(const SigSet& unfiltered, FlatHashSet<int>& _fluent_predicates) {
+        SigSet filteredSigSet;
+        for (auto& prereq :  unfiltered) {
+            if (!_fluent_predicates.count(prereq._usig._name_id)) {
+                filteredSigSet.insert(prereq);
+            }
+        }
+        return filteredSigSet;
+    }
+
+    SigSet filterRigidPredicates(const SigSet& unfiltered, FlatHashSet<int>& _fluent_predicates) {
+        SigSet filteredSigSet;
+        for (auto& prereq :  unfiltered) {
+            if (_fluent_predicates.count(prereq._usig._name_id)) {
+                filteredSigSet.insert(prereq);
+            }
+        }
+        return filteredSigSet;
+    }
+    
     std::vector<int> calcOrderedOpList();
 
     void fillFactFramesAction(int& opId, int& aId, bool& change);

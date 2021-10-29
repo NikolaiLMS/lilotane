@@ -3,6 +3,7 @@ import logging
 import sys
 import time 
 import math
+import random
 
 from multiprocessing import Process
 import subprocess
@@ -31,14 +32,14 @@ def validateSolution(solution_path: str, domain_file_path, instance_file_path, v
     return "Plan verification result: true" in out
 
 def hasSolution(outputpath: str) -> bool:
-    return not bool(os.system(f"grep -r 'Found a solution' {outputpath}"))
+    return not bool(os.system(f"grep -r 'End of solution plan' {outputpath}"))
 
 def hasStatistics(outputpath: str) -> bool:
     return not bool(os.system(f"grep -r 'Exiting happily.' {outputpath}"))
 
 @catchProcessError
 def getRuntime(solution_path: str) -> float:
-    runtime = float(subprocess.check_output([f"grep 'Found a solution' {solution_path} |" + " awk '{print $1}'"], shell=True).decode())
+    runtime = float(subprocess.check_output([f"grep 'End of solution plan' {solution_path} |" + " awk '{print $1}'"], shell=True).decode())
     logger.debug(f"Runtime: {runtime}")
     return runtime
 
@@ -61,26 +62,83 @@ def getNumClauses(solution_path: str) -> int:
     return num_clauses
 
 @catchProcessError
-def getDepthLimit(solution_path: str) -> int:
-    Depth_limit = int(subprocess.check_output([f"grep 'DEPTH_LIMIT:' {solution_path} |" + " awk '{print $3}'"], shell=True).decode())
-    logger.debug(f"Depth_limit: : {Depth_limit}")
-    return Depth_limit
-    
-@catchProcessError
 def getTimePreprocessing(solution_path: str) -> float:
     time_preprocessing = float(subprocess.check_output([f"grep 'Mined' {solution_path} |" + " awk '{print $1}'"], shell=True).decode())
     logger.debug(f"time_preprocessing: : {time_preprocessing}")
     return time_preprocessing
 
 @catchProcessError
-def getInvalidRigidPreconditions(solution_path: str) -> int:
-    invalid_preconditions = int(subprocess.check_output([f"grep 'invalid rigid preconditions' {solution_path} |" + " awk '{print $9}'"], shell=True).decode())
+def getTimeInstantiating(solution_path: str) -> float:
+    time_instantiating = subprocess.check_output([f"grep 'Instantiating ...' -A1 {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
+    time_instantiating_pairs = time_instantiating.split("---\n")
+    time_instantiating = 0.0
+    for pair in time_instantiating_pairs:
+        times = pair.split("\n")
+        time_instantiating += float(times[1]) - float(times[0])
+    logger.debug(f"time_instantiating: : {time_instantiating}")
+    return time_instantiating
+    
+@catchProcessError
+def getTimeEncoding(solution_path: str) -> float:
+    time_encoding = subprocess.check_output([f"grep 'Encoding ...' -A1 {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
+    time_encoding_pairs = time_encoding.split("---\n")
+    time_encoding = 0.0
+    for pair in time_encoding_pairs:
+        times = pair.split("\n")
+        time_encoding += float(times[1]) - float(times[0])
+    logger.debug(f"time_encoding: : {time_encoding}")
+    return time_encoding
+
+@catchProcessError
+def getTimeSATSolving(solution_path: str) -> float:
+    time_sat_solving = subprocess.check_output([f"grep 'Attempting to solve' -A1 {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
+    time_sat_solving_pairs = time_sat_solving.split("---\n")
+    time_sat_solving = 0.0
+    for pair in time_sat_solving_pairs:
+        times = pair.split("\n")
+        time_sat_solving += float(times[1]) - float(times[0])
+    logger.debug(f"time_sat_solving: : {time_sat_solving}")
+    return time_sat_solving
+
+@catchProcessError
+def getInvalidRigidPreconditionsTotal(solution_path: str) -> int:
+    invalid_preconditions = int(subprocess.check_output([f"grep 'total invalid rigid preconditions' {solution_path} |" + " awk '{print $10}'"], shell=True).decode())
     logger.debug(f"invalid_rigid_preconditions: : {invalid_preconditions}")
     return invalid_preconditions
 
 @catchProcessError
+def getInvalidRigidPreconditions(solution_path: str) -> int:
+    invalid_preconditions = int(subprocess.check_output([f"grep '# invalid rigid preconditions found in getPFC:' {solution_path} |" + " awk '{print $9}'"], shell=True).decode())
+    logger.debug(f"invalid_rigid_preconditions: : {invalid_preconditions}")
+    return invalid_preconditions
+
+@catchProcessError
+def getInvalidRigidPreconditionsVarrestrictions(solution_path: str) -> int:
+    invalid_preconditions = int(subprocess.check_output([f"grep 'rigid preconditions found in getPFC in varrestrictions' {solution_path} |" + " awk '{print $11}'"], shell=True).decode())
+    logger.debug(f"invalid_rigid_preconditions: : {invalid_preconditions}")
+    return invalid_preconditions
+
+@catchProcessError
+def getInvalidFluentPreconditionsTotal(solution_path: str) -> int:
+    invalid_preconditions = int(subprocess.check_output([f"grep 'total invalid fluent preconditions' {solution_path} |" + " awk '{print $10}'"], shell=True).decode())
+    logger.debug(f"invalid_fluent_preconditions: : {invalid_preconditions}")
+    return invalid_preconditions
+
+@catchProcessError
 def getInvalidFluentPreconditions(solution_path: str) -> int:
-    invalid_preconditions = int(subprocess.check_output([f"grep 'invalid fluent preconditions' {solution_path} |" + " awk '{print $9}'"], shell=True).decode())
+    invalid_preconditions = int(subprocess.check_output([f"grep '# invalid fluent preconditions found in getPFC:' {solution_path} |" + " awk '{print $9}'"], shell=True).decode())
+    logger.debug(f"invalid_fluent_preconditions: : {invalid_preconditions}")
+    return invalid_preconditions
+
+@catchProcessError
+def getInvalidFluentPreconditionsVarrestrictions(solution_path: str) -> int:
+    invalid_preconditions = int(subprocess.check_output([f"grep 'fluent preconditions found in getPFC in varrestrictions' {solution_path} |" + " awk '{print $11}'"], shell=True).decode())
+    logger.debug(f"invalid_fluent_preconditions: : {invalid_preconditions}")
+    return invalid_preconditions
+
+@catchProcessError
+def getInvalidFluentPreconditionsViaPostconditions(solution_path: str) -> int:
+    invalid_preconditions = int(subprocess.check_output([f"grep 'fluent preconditions found in getPFC via postconditions' {solution_path} |" + " awk '{print $11}'"], shell=True).decode())
     logger.debug(f"invalid_fluent_preconditions: : {invalid_preconditions}")
     return invalid_preconditions
 
@@ -120,15 +178,22 @@ def getRamNeeded(solution_path: str) -> int:
     logger.error(f"ram_needed: : {ram_needed}")
     return ram_needed
 
-figures_all = ['depth', 'num_clauses', 'invalid_subtasks', 'invalid_rigid_preconditions', 'invalid_fluent_preconditions', 'preprocessing_time', 
-    'depth_limit', 'num_effects_erased', 'num_mined_preconditions', 'num_effects_reduction', 'ram_needed']
+figures_all = ['depth', 'num_clauses', 'invalid_subtasks', 'invalid_rigid_preconditions', 'invalid_rigid_preconditions_total', 'invalid_rigid_preconditions_varrestrictions',
+'invalid_fluent_preconditions', 'invalid_fluent_preconditions_total', 'invalid_fluent_preconditions_varrestrictions', 
+ 'invalid_fluent_preconditions_via_postconditions', 'preprocessing_time', 'num_effects_erased', 'num_mined_preconditions', 
+ 'num_effects_reduction', 'ram_needed']
 
-figures_finished = ['time_needed', 'plan_length']
+figures_finished = ['time_needed', 'plan_length', 'time_instantiating', 'time_encoding', 'time_satsolving']
 
 get_figure = {'depth': getLastIteration, 'num_clauses': getNumClauses, 'invalid_subtasks': getInvalidSubtasks, 'invalid_rigid_preconditions': getInvalidRigidPreconditions, 
-  'invalid_fluent_preconditions': getInvalidFluentPreconditions, 'preprocessing_time': getTimePreprocessing, 'depth_limit': getDepthLimit,
+  'invalid_fluent_preconditions': getInvalidFluentPreconditions, 'preprocessing_time': getTimePreprocessing, 
   'time_needed': getRuntime, 'plan_length': getSolutionLength, 'num_effects_erased': getNumEffectsErasedRel, 'num_mined_preconditions': getNumMinedPreconditions,
-  'num_effects_reduction': getNumEffectsReduction, 'ram_needed': getRamNeeded}
+  'num_effects_reduction': getNumEffectsReduction, 'ram_needed': getRamNeeded, 'time_instantiating': getTimeInstantiating, 'time_encoding': getTimeEncoding,
+  'time_satsolving': getTimeSATSolving, 'invalid_rigid_preconditions_total': getInvalidRigidPreconditionsTotal, 
+  'invalid_rigid_preconditions_varrestrictions': getInvalidRigidPreconditionsVarrestrictions,
+  'invalid_fluent_preconditions_total': getInvalidFluentPreconditionsTotal, 
+  'invalid_fluent_preconditions_varrestrictions': getInvalidFluentPreconditionsVarrestrictions, 
+  'invalid_fluent_preconditions_via_postconditions': getInvalidFluentPreconditionsViaPostconditions}
 
 def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validatorPath: str, timeout: int, additional_params: str, runwatch_path: str):
     global get_figure
@@ -150,7 +215,7 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
     domain_sizes = {}
 
     result_paths_by_domain = {}
-    runwatch_commands = ""
+    runwatch_commands = []
     num_job = 1
     
     for instancedir in [dir for dir in os.listdir(instancesPath) if os.path.isdir(f"{instancesPath}/{dir}")]:
@@ -179,7 +244,7 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
 
                 result_path = result_dir + f"/{file}.log"
 
-                runwatch_commands += f"{num_job} {binaryPath} {domain_file_path} {instance_file_path} -co=0 {additional_params}\n"
+                runwatch_commands.append(f"{num_job} {binaryPath} {domain_file_path} {instance_file_path} -co=0 {additional_params}\n")
                 
                 instance_result_paths.append((result_path, domain_file_path, instance_file_path, num_job, file_id))
 
@@ -188,9 +253,14 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
         result_paths_by_domain[instancedir] = instance_result_paths
         domain_sizes[instancedir] = instance_amount
     runwatch_commands_file = output_path + "/runwatch_commands.txt"
+    
+    random.shuffle(runwatch_commands)
+    runwatch_command_string = ""
+    for command in runwatch_commands:
+        runwatch_command_string += command
 
     with open(runwatch_commands_file, "w") as f:
-        f.write(runwatch_commands)
+        f.write(runwatch_command_string)
 
     runwatch_command = f"{runwatch_path} {runwatch_commands_file} {runwatch_params} -T {timeout} -d {output_path}/runwatch_log"
     print(runwatch_command)
@@ -253,37 +323,46 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
     
     total_score = 0
     ipc_scores_string = ""
-    for domain in results.keys():
-        score = 0
-        for result in results[domain]:
-            if result['time_needed'] <= 1.0:
-                score += 1
-            else:
-                score += 1 - (math.log(result['time_needed'])/math.log(1800))
+    for domain in domain_sizes:
+        score = 0.0
+        if domain in results:
+            for result in results[domain]:
+                if result['time_needed'] <= 1.0:
+                    score += 1
+                else:
+                    score += 1 - (math.log(result['time_needed'])/math.log(1800))
         score = score/domain_sizes[domain]
         ipc_scores_string += f"{domain} {score}\n"
         total_score += score
     ipc_scores_string += f"Total score {total_score}"
 
     par2_score = 0
+    total_num_instances = 0
     par2_scores_string = ""
-    for domain in results.keys():
+    for domain in domain_sizes:
+        total_num_instances += domain_sizes[domain]
         score = 0.0
-        for result in results[domain]:
-            score += result['time_needed']
-        score += (domain_sizes[domain] - len(results[domain])) * 2*timeout
+        if domain in results:
+            for result in results[domain]:
+                score += result['time_needed']
+            score += (domain_sizes[domain] - len(results[domain])) * 2*timeout
+        else:
+            score += domain_sizes[domain] * 2*timeout
 
-        score = score/domain_sizes[domain]
         par2_score += score
 
-        par2_scores_string += f"{domain} {score}\n"
+        domain_score = score/domain_sizes[domain]
+        par2_scores_string += f"{domain} {domain_score}\n"
+    
+    par2_score /= total_num_instances
     par2_scores_string += f"Total score {par2_score}"
 
     total_coverage = 0
     coverage_string = ""
-    for domain in results.keys():
-
-        coverage = len(results[domain])/domain_sizes[domain]
+    for domain in domain_sizes:
+        coverage = 0.0
+        if domain in results:
+            coverage = len(results[domain])/domain_sizes[domain]
 
         total_coverage += coverage
 
@@ -316,6 +395,7 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
     logger.debug(f"finished {num_finished} instances, did not finish {num_unfinished} instances, {num_errored} instances errored, {num_invalid} invalid solutions\n")
     logger.debug(f"ipc-score: {total_score}")
     logger.debug(f"par2-score: {par2_score}")
+    logger.debug(f"coverage: {coverage}")
 
 
 def convert_relative(path: str) -> str:

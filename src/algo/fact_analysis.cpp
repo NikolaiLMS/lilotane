@@ -100,7 +100,7 @@ bool FactAnalysis::restrictNewVariables(SigSet& preconditions, SigSet& fluentPre
                 preconditionsToRemove.insert(substitutedPrecondition);
             } else {
                 //Log::e("Found no possible constants for precondition %s\n", TOSTR(substitutedPrecondition));
-                _invalid_rigid_preconditions_found++;
+                _invalid_rigid_preconditions_found_varrestrictions++;
                 freeArgRestrictions.erase(substitutedPrecondition._usig._args[argPosition]);
                 valid = false;
                 break;
@@ -157,7 +157,7 @@ bool FactAnalysis::restrictNewVariables(SigSet& preconditions, SigSet& fluentPre
                 preconditionsToRemove.insert(substitutedPrecondition);
             } else {
                 //Log::e("Found no possible constants for precondition %s\n", TOSTR(substitutedPrecondition));
-                _invalid_fluent_preconditions_found++;
+                _invalid_fluent_preconditions_found_varrestrictions++;
                 freeArgRestrictions.erase(substitutedPrecondition._usig._args[argPosition]);
                 valid = false;
                 break;
@@ -184,15 +184,6 @@ bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, N
     // Check if any precondition is rigid and not valid in the initState
     for (const auto& substitutedPrecondition : preconditions) {
         //Log::e("checking rigid precondition: %s\n", TOSTR(substitutedPrecondition));
-        bool hasUnboundArg = false;
-        std::vector<int> freeArgPositions;
-        for (const auto& argPosition: _htn.getFreeArgPositions(substitutedPrecondition._usig._args)) {
-            if (substitutedPrecondition._usig._args[argPosition] != _name_id_) {
-                freeArgPositions.push_back(argPosition);
-            } else {
-                hasUnboundArg = true;
-            }
-        }
         if (_htn.isFullyGround(substitutedPrecondition._usig) && !_htn.hasQConstants(substitutedPrecondition._usig)) {
             //Log::d("Found ground precondition without qconstants: %s\n", TOSTR(substitutedPrecondition));
             preconditionsValid = !substitutedPrecondition._negated != !_init_state.count(substitutedPrecondition._usig);
@@ -210,8 +201,6 @@ bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, N
             //Log::e("Found invalid rigid precondition: %s\n", TOSTR(substitutedPrecondition));
             _invalid_rigid_preconditions_found++;
             break;
-        } else {
-            //Log::e("Found valid rigid precondition: %s\n", TOSTR(substitutedPrecondition));
         }
     }
     return preconditionsValid;
@@ -226,16 +215,19 @@ bool FactAnalysis::checkPreconditionValidityFluent(SigSet& preconditions, NodeHa
         substitutedPrecondition.negate();
         if (postconditions[substitutedPrecondition._usig._name_id].count(substitutedPrecondition)){
             // Log::e("Found invalid fluent precondition in postconditions: %s\n", TOSTR(substitutedPrecondition));
-            // Log::e("postconditions: %s\n", TOSTR(postconditions[substitutedPrecondition._usig._name_id]));
+            _invalid_fluent_preconditions_found_via_postconditions++;
             preconditionsValid = false;
             break;
         }
         substitutedPrecondition.negate();
-        //Log::e("checking fluent precondition: %s\n", TOSTR(substitutedPrecondition));
         if (substitutedPrecondition._negated) {
             if (_htn.isFullyGround(substitutedPrecondition._usig) && !_htn.hasQConstants(substitutedPrecondition._usig)) {
                 preconditionsValid = countNegativeGround(foundEffectsNegative[substitutedPrecondition._usig._name_id], substitutedPrecondition._usig, freeArgRestrictions) || !_init_state.count(substitutedPrecondition._usig);
             } else {
+                if (foundEffectsNegative[substitutedPrecondition._usig._name_id].count(substitutedPrecondition._usig)) {
+                    preconditionsValid = true;
+                    break;
+                }
                 preconditionsValid = false;
                 for (const USignature& groundFact : ArgIterator::getFullInstantiation(substitutedPrecondition._usig, _htn, freeArgRestrictions, true)) {
                     if (countNegativeGround(foundEffectsNegative[substitutedPrecondition._usig._name_id], groundFact, freeArgRestrictions) || !_init_state.count(groundFact)) {
@@ -249,14 +241,6 @@ bool FactAnalysis::checkPreconditionValidityFluent(SigSet& preconditions, NodeHa
         }
         if (!preconditionsValid) {
             //Log::e("Found invalid fluent precondition: %s\n", TOSTR(substitutedPrecondition));
-            //Log::e("posFacts: %s\n", TOSTR(_pos_layer_facts));
-            //Log::e("negFacts: %s\n",  TOSTR(_neg_layer_facts));
-            // for (const auto& [predicate, signatures]: foundEffectsPositive) {
-            //      Log::e("foundPos: %s\n", TOSTR(signatures));
-            // }
-            // for (const auto& [predicate, signatures]: foundEffectsPositive) {
-            //     Log::e("foundNeg: %s\n", TOSTR(signatures));
-            // }
             _invalid_fluent_preconditions_found++;
             break;
         }

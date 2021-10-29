@@ -16,10 +16,10 @@ void FactAnalysisPreprocessing::computeFactFramesBase() {
 
     extendPreconditions(orderedOpIds);
 
-    for (const auto& [id, ff] : _fact_frames) {
-        Log::d("FF %s effects: %s\n", TOSTR(ff.sig), TOSTR(ff.effects));
-        Log::d("FF: %s\n", TOSTR(ff));
-    }
+    // for (const auto& [id, ff] : _fact_frames) {
+    //     Log::d("FF %s effects: %s\n", TOSTR(ff.sig), TOSTR(ff.effects));
+    //     Log::d("FF: %s\n", TOSTR(ff));
+    // }
 }
 
 void FactAnalysisPreprocessing::findOperationsWithCycles(std::map<int, std::vector<int>>& orderingOplist) {
@@ -105,7 +105,7 @@ std::vector<int> FactAnalysisPreprocessing::calcOrderedOpList() {
     // As the graph may be cyclic, the ordering is not flawless
     // and can contain forward references.
     std::vector<int> orderedOpIds = TopologicalOrdering::compute(orderingOplist);
-    Log::d("FF all: { %s }\n", TOSTR(orderedOpIds));
+    //Log::d("FF all: { %s }\n", TOSTR(orderedOpIds));
     return orderedOpIds;
 }
 
@@ -143,12 +143,8 @@ void FactAnalysisPreprocessing::fillFactFramesAction(int& opId, int& aId, bool& 
 void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpIds) {
     bool change = true;
     int numEffectsReductions;
-    int run = 1;
     while (change) {
-        //Log::e("Run number %i\n", run);
-        run++;
         numEffectsReductions = 0;
-        _util.setNumEffectsErasedByPostconditions(0);
         change = false;
         // Iterate over each (lifted) operation in reversed order
         for (int i = orderedOpIds.size()-1; i >= 0; i--) {
@@ -246,8 +242,6 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                         negatedCopy.negate();
                         if (result.effects.count(negatedCopy)) {
                             result.effects.erase(negatedCopy);
-                            _util.incrementNumEffectsErasedByPostconditions();
-                            Log::e("Removed effect %s from effects of reduction %s\n", TOSTR(negatedCopy), TOSTR(opId));
                         }
                     }
                 }
@@ -274,14 +268,11 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
 }
 
 void FactAnalysisPreprocessing::extendPreconditions(std::vector<int>& orderedOpIds) {
-    int avgBranchDegreeArithmetic = 0;
-    int numReductions = 0;
     // In a next step, use the converged fact changes to infer preconditions
     for (int i = orderedOpIds.size()-1; i >= 0; i--) {
         int opId = orderedOpIds[i];
         Log::d("FF %i : %s\n", i, TOSTR(opId));
         if (_htn.isReduction(opId) && !_htn.isReductionPrimitivizable(opId)) {
-            numReductions++;
             const auto& reduction = _htn.getAnonymousReduction(opId);
             FlatHashSet<int> argSet(reduction.getArguments().begin(), reduction.getArguments().end());
             FactFrame& result = _fact_frames[opId];
@@ -299,7 +290,6 @@ void FactAnalysisPreprocessing::extendPreconditions(std::vector<int>& orderedOpI
                 FactFrame offsetFrame;
                 bool firstChild = true;
                 for (const auto& child : children) {
-                    avgBranchDegreeArithmetic++;
                     // Retrieve child's fact frame
                     FactFrame childFrame = _fact_frames.at(child._name_id);
                     // Convert fact frame to local args of child
@@ -334,21 +324,17 @@ void FactAnalysisPreprocessing::extendPreconditions(std::vector<int>& orderedOpI
                 // Update effects with offset effects found above
                 Sig::unite(result.offsetEffects[i], effects);
             }
-            result.rigidPreconditions = _util.filterFluentPredicates(result.preconditions, _fluent_predicates);
-            result.fluentPreconditions = _util.filterRigidPredicates(result.preconditions, _fluent_predicates);
+            result.rigidPreconditions = filterFluentPredicates(result.preconditions, _fluent_predicates);
+            result.fluentPreconditions = filterRigidPredicates(result.preconditions, _fluent_predicates);
 
             // Clear unneeded cached offset effects
             result.offsetEffects.clear();
         } else {
             FactFrame& result = _fact_frames[opId];
-            result.rigidPreconditions = _util.filterFluentPredicates(result.preconditions, _fluent_predicates);
-            result.fluentPreconditions = _util.filterRigidPredicates(result.preconditions, _fluent_predicates);
+            result.rigidPreconditions = filterFluentPredicates(result.preconditions, _fluent_predicates);
+            result.fluentPreconditions = filterRigidPredicates(result.preconditions, _fluent_predicates);
         }
     }
-    avgBranchDegreeArithmetic = int(avgBranchDegreeArithmetic/numReductions);
-    DEPTH_LIMIT = std::max(int(std::log(MAX_NODES) / std::log(avgBranchDegreeArithmetic)), 1);
-    //Log::e("avgBranchDegreeArithmetic: %i\n", avgBranchDegreeArithmetic);
-    //Log::e("DEPTH_LIMIT: %i\n", DEPTH_LIMIT);
 }
 
 void FactAnalysisPreprocessing::fillPFCNodesTopDownBFS(std::vector<int>& orderedOpIds) {
@@ -450,14 +436,12 @@ FlatHashSet<int> FactAnalysisPreprocessing::findFluentPredicates(const std::vect
     // find predicate signatures that are affected by operations (and thus find rigid predicates)
     for (int i = orderedOpIds.size()-1; i >= 0; i--) {
         int opId = orderedOpIds[i];
-        Log::d("FF %i : %s\n", i, TOSTR(opId));
         
         if (_htn.isAction(opId) || _htn.isActionRepetition(opId)) {
             int aId = opId;
             if (_htn.isActionRepetition(opId)) aId = _htn.getActionNameFromRepetition(opId);
             Action action = _htn.getAnonymousAction(aId);
             for (auto effect : action.getEffects()) {
-                Log::d("Found fluent predicate: %s\n", TOSTR(effect));
                 fluentPredicates.insert(effect._usig._name_id);
             }
 
@@ -466,7 +450,6 @@ FlatHashSet<int> FactAnalysisPreprocessing::findFluentPredicates(const std::vect
             int aId = _htn.getReductionPrimitivizationName(opId);
             Action action = _htn.getAnonymousAction(aId);
             for (auto effect : action.getEffects()) {
-                Log::d("Found fluent predicate: %s\n", TOSTR(effect));
                 fluentPredicates.insert(effect._usig._name_id);
             }
         }

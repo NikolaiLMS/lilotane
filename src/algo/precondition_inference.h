@@ -30,7 +30,7 @@ public:
                 }
                 if (hasFreeArgs) continue;
 
-                Log::d("%s : MINED_PRE %s\n", TOSTR(r.getSignature()), TOSTR(pre));
+                //Log::d("%s : MINED_PRE %s\n", TOSTR(r.getSignature()), TOSTR(pre));
                 if (mode == USE_FOR_INSTANTIATION) {
                     r.addExtraPrecondition(std::move(pre));
                 }
