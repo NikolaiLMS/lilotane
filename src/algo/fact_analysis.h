@@ -105,8 +105,8 @@ public:
         return _invalid_subtasks_found;
     }
 
-   int getNumEffectsReductions() {
-        return _util.getNumEffectsReductions();
+   int getNumEffects() {
+        return _util.getNumEffects();
     }
 
     void resetReachability() {

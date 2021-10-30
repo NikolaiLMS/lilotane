@@ -142,9 +142,9 @@ void FactAnalysisPreprocessing::fillFactFramesAction(int& opId, int& aId, bool& 
 
 void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpIds) {
     bool change = true;
-    int numEffectsReductions;
+    int numEffects;
     while (change) {
-        numEffectsReductions = 0;
+        numEffects = 0;
         change = false;
         // Iterate over each (lifted) operation in reversed order
         for (int i = orderedOpIds.size()-1; i >= 0; i--) {
@@ -155,10 +155,12 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                 int aId = opId;
                 if (_htn.isActionRepetition(opId)) aId = _htn.getActionNameFromRepetition(opId);
                 fillFactFramesAction(opId, aId, change);
+                numEffects += _fact_frames[opId].effects.size();
             } else if (_htn.isReductionPrimitivizable(opId)) {
                 // Primitivization of a reduction, i.e., essentially just an action
                 int aId = _htn.getReductionPrimitivizationName(opId);
                 fillFactFramesAction(opId, aId, change);
+                numEffects += _fact_frames[opId].effects.size();
             } else if (_htn.isReduction(opId)) {
                 // Reduction
                 const auto& reduction = _htn.getAnonymousReduction(opId);
@@ -255,7 +257,7 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                     }
                 }
 
-                numEffectsReductions += result.effects.size();
+                numEffects += result.effects.size();
                 if (result.effects.size() != priorEffs or result.postconditions.size() != priorPostconditionSize or 
                     result.negatedPostconditions.size() != priorNegatedPostconditionSize) {
                     change = true;
@@ -263,7 +265,7 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
             }
         }
     }
-    _util.setNumEffectsReductions(numEffectsReductions);
+    _util.setNumEffects(numEffects);
     
 }
 

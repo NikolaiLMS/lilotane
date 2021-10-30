@@ -14,7 +14,7 @@ void RetroactivePruning::prune(const USignature& op, int layerIdx, int pos) {
     while (!openOps.empty()) {
         PositionedUSig psig = *openOps.begin();
         openOps.erase(psig);
-        //Log::d("PRUNE_UP %s\n", TOSTR(psig));
+        Log::d("PRUNE_UP %s\n", TOSTR(psig));
 
         if (psig.layer == 0) {
             // Top of the hierarchy hit
@@ -57,7 +57,7 @@ void RetroactivePruning::prune(const USignature& op, int layerIdx, int pos) {
         PositionedUSig psig = *opsToRemove.begin();
         opsToRemove.erase(psig);
         Position& position = _layers[psig.layer]->at(psig.pos);
-        //Log::d("PRUNE_DOWN %s\n", TOSTR(psig));
+        Log::d("PRUNE_DOWN %s\n", TOSTR(psig));
         assert(position.hasAction(psig.usig) || position.hasReduction(psig.usig));
 
         // Go down one layer and mark all children for removal which have only one predecessor left
@@ -75,12 +75,10 @@ void RetroactivePruning::prune(const USignature& op, int layerIdx, int pos) {
                         // Child has this op as its only predecessor -> prune
                         opsToRemove.emplace(psig.layer+1, belowPosIdx, child);
                     } else {
-                        //Log::d("PRUNE %i pred left for %s@(%i,%i): %s\n", below.getPredecessors().at(child).size()-1, TOSTR(child), psig.layer+1, belowPosIdx);
+                        Log::d("PRUNE %i pred left for %s@(%i,%i): %s\n", below.getPredecessors().at(child).size()-1, TOSTR(child), psig.layer+1, belowPosIdx);
                         below.getPredecessors().at(child).erase(psig.usig);
                     }
-                } else {
-                    //Log::d("PRUNE No expansions for %s @ (%i,%i)\n", TOSTR(psig), psig.layer+1, belowPosIdx);
-                }
+                } else Log::d("PRUNE No expansions for %s @ (%i,%i)\n", TOSTR(psig), psig.layer+1, belowPosIdx);
 
                 belowPosIdx++;
             }

@@ -345,7 +345,7 @@ void Planner::createNextPositionFromLeft(Position& left) {
                         repeatedAction ? EffectMode::DIRECT_NO_QFACT : EffectMode::DIRECT)) {
                     
                     // Impossible direct effect: forbid action retroactively.
-                    Log::d("Retroactively prune action %s due to impossible effect %s\n", TOSTR(aSig), TOSTR(fact));
+                    Log::w("Retroactively prune action %s due to impossible effect %s\n", TOSTR(aSig), TOSTR(fact));
                     actionsToRemove.insert(aSig);
 
                     // Also remove any virtualized actions corresponding to this action
@@ -630,7 +630,7 @@ void Planner::propagateActions(size_t offset) {
 
         // If not: forbid the action, i.e., its parent action
         if (!valid) {
-            Log::d("Retroactively prune action %s@(%i,%i): no children at offset %i\n", TOSTR(aSig), _layer_idx-1, _old_pos, offset);
+            Log::i("Retroactively prune action %s@(%i,%i): no children at offset %i\n", TOSTR(aSig), _layer_idx-1, _old_pos, offset);
             actionsToPrune.push_back(aSig);
         }
     }
@@ -734,7 +734,7 @@ void Planner::propagateReductions(size_t offset) {
     // Check if any reduction has no valid children at all
     for (const auto& rSig : above.getReductions()) {
         if (!reductionsWithChildren.count(rSig)) {
-            Log::d("Retroactively prune reduction %s@(%i,%i): no children at offset %i\n", 
+            Log::i("Retroactively prune reduction %s@(%i,%i): no children at offset %i\n", 
                     TOSTR(rSig), _layer_idx-1, _old_pos, offset);
             _pruning.prune(rSig, _layer_idx-1, _old_pos);
         }
@@ -997,5 +997,5 @@ void Planner::printStatistics() {
     Log::i("# invalid fluent preconditions found in getPFC in varrestrictions: %i\n", _analysis->getInvalidFluentPreconditionsFoundByVarRestriction());
     Log::i("# invalid fluent preconditions found in getPFC via postconditions: %i\n", _analysis->getInvalidFluentPreconditionsFoundViaPostconditions());
     Log::i("# invalid subtasks found in getPFC: %i\n", _analysis->getInvalidSubtasksFound());
-    Log::i("# number effects in reduction fact_frames: %i\n", _analysis->getNumEffectsReductions());
+    Log::i("# number effects in operation fact_frames: %i\n", _analysis->getNumEffects());
 }

@@ -7,7 +7,7 @@ private:
     HtnInstance& _htn;
     NodeHashMap<int, FactFrame>& _fact_frames;
     NetworkTraversal& _traversal;
-    int _num_effects_reductions = 0;
+    int _num_effects = 0;
 
 public:
 
@@ -23,11 +23,11 @@ public:
         return f.substitute(Substitution(f.sig._args, sig._args));
     }
 
-    void setNumEffectsReductions(int newNum) {
-        _num_effects_reductions = newNum;
+    void setNumEffects(int newNum) {
+        _num_effects = newNum;
     }
 
-    int getNumEffectsReductions() {
-        return _num_effects_reductions;
+    int getNumEffects() {
+        return _num_effects;
     }
 };
