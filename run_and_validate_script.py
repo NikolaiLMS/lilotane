@@ -324,35 +324,37 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
     total_score = 0
     ipc_scores_string = ""
     for domain in domain_sizes:
-        score = 0.0
-        if domain in results:
-            for result in results[domain]:
-                if result['time_needed'] <= 1.0:
-                    score += 1
-                else:
-                    score += 1 - (math.log(result['time_needed'])/math.log(1800))
-        score = score/domain_sizes[domain]
-        ipc_scores_string += f"{domain} {score}\n"
-        total_score += score
+        if domain_sizes[domain] > 0:
+            score = 0.0
+            if domain in results:
+                for result in results[domain]:
+                    if result['time_needed'] <= 1.0:
+                        score += 1
+                    else:
+                        score += 1 - (math.log(result['time_needed'])/math.log(1800))
+            score = score/domain_sizes[domain]
+            ipc_scores_string += f"{domain} {score}\n"
+            total_score += score
     ipc_scores_string += f"Total score {total_score}"
 
     par2_score = 0
     total_num_instances = 0
     par2_scores_string = ""
     for domain in domain_sizes:
-        total_num_instances += domain_sizes[domain]
-        score = 0.0
-        if domain in results:
-            for result in results[domain]:
-                score += result['time_needed']
-            score += (domain_sizes[domain] - len(results[domain])) * 2*timeout
-        else:
-            score += domain_sizes[domain] * 2*timeout
+        if domain_sizes[domain] > 0:
+            total_num_instances += domain_sizes[domain]
+            score = 0.0
+            if domain in results:
+                for result in results[domain]:
+                    score += result['time_needed']
+                score += (domain_sizes[domain] - len(results[domain])) * 2*timeout
+            else:
+                score += domain_sizes[domain] * 2*timeout
 
-        par2_score += score
+            par2_score += score
 
-        domain_score = score/domain_sizes[domain]
-        par2_scores_string += f"{domain} {domain_score}\n"
+            domain_score = score/domain_sizes[domain]
+            par2_scores_string += f"{domain} {domain_score}\n"
     
     par2_score /= total_num_instances
     par2_scores_string += f"Total score {par2_score}"
@@ -360,13 +362,14 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
     total_coverage = 0
     coverage_string = ""
     for domain in domain_sizes:
-        coverage = 0.0
-        if domain in results:
-            coverage = len(results[domain])/domain_sizes[domain]
+        if domain_sizes[domain] > 0:
+            coverage = 0.0
+            if domain in results:
+                coverage = len(results[domain])/domain_sizes[domain]
 
-        total_coverage += coverage
+            total_coverage += coverage
 
-        coverage_string += f"{domain} {coverage}\n"
+            coverage_string += f"{domain} {coverage}\n"
     coverage_string += f"Total coverage {total_coverage}"
 
     with open(outputPath + "/par2_scores.txt", "w") as f:
