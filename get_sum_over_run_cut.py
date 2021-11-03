@@ -41,17 +41,16 @@ def runAndCollect(instancesPath: str, metric: str):
         else:
             results = local_results
 
-    avg_string = ""
+    sum_string = ""
     for i in range(len(rundirs)):
-        avg = 0
+        sum_ = 0
         for key, value in results.items():
-            avg += value[i]
-        avg /= len(results)
-        avg_string += f"{rundirs[i]} {avg}\n"
+            sum_ += value[i]
+        sum_string += f"{rundirs[i]} {sum_}\n"
 
 
-    with open(f"average_cut_{metric}", "w") as f:
-        f.write(avg_string)
+    with open(f"sum_cut_{metric}", "w") as f:
+        f.write(sum_string)
 
 def convert_relative(path: str) -> str:
     return path if path.startswith("/") else os.getcwd() + "/" + path
