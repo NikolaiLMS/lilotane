@@ -10,6 +10,32 @@ import subprocess
 from pathlib import Path
 import signal
 
+domain_names_shortened = {"Robot": "Robot",
+        "Blocksworld-HPDDL": "Blocksworld-H",
+        "Monroe-Partially-Observable": "Monroe-PO",
+        "Logistics-Learned-ECAI-16": "Logistics",
+        "Blocksworld-GTOHP": "Blocksworld-G",
+        "Satellite-GTOHP": "Satellite",
+        "Transport": "Transport",
+        "Hiking": "Hiking",
+        "Woodworking": "Woodworking",
+        "Barman-BDI": "Barman",
+        "Entertainment": "Entertainment",
+        "Childsnack": "Childsnack",
+        "Snake": "Snake",
+        "Factories-simple": "Factories",
+        "Elevator-Learned-ECAI-16": "Elevator",
+        "AssemblyHierarchical": "AssemblyH",
+        "Depots": "Depots",
+        "Monroe-Fully-Observable": "Monroe-FO",
+        "Freecell-Learned-ECAI-16": "Freecell",
+        "Minecraft-Player": "Minecraft-P",
+        "Minecraft-Regular": "Minecraft-R",
+        "Multiarm-Blocksworld": "Multiarm-B",
+        "Towers":"Towers",
+        "Rover-GTOHP": "Rover-GTOHP",
+        "Totalscore": "Total score"}
+
 def runAndCollect(instancesPath: str, metric: str, bigger_is_better = False):
     results = {}
     rundirs = []
@@ -27,7 +53,11 @@ def runAndCollect(instancesPath: str, metric: str, bigger_is_better = False):
                 for prefix in split_result[:-1]:
                     key += prefix
                 value = split_result[-1]
-                local_results[key] = [round(float(value),2)]
+                round_num = min(2, 4-len(str(round(float(value)))))
+                if round_num > 0:
+                    local_results[key] = round(float(value), round_num)
+                else:
+                    local_results[key] = round(float(value))
 
         results[rundir.split("_")[0]] = local_results
 
@@ -37,38 +67,47 @@ def runAndCollect(instancesPath: str, metric: str, bigger_is_better = False):
     for key in results[somekey].keys():
         currentBestKey = somekey
         currentBestValue = results[somekey][key]
-        for run_key in results.keys:
+        foundMultiple = False
+        for run_key in results.keys():
+            if results[run_key][key] == currentBestValue:
+                foundMultiple = True
             if bigger_is_better:
                 if results[run_key][key] > currentBestValue:
                     currentBestValue = results[run_key][key]
                     currentBestKey = run_key
+                    foundMultiple = False
             elif results[run_key][key] < currentBestValue:
                 currentBestValue = results[run_key][key]
                 currentBestKey = run_key
-
-        winner_domain[key] = currentBestKey
-        winners.add(currentBestKey)
+                foundMultiple = False
+        if not foundMultiple:
+            winner_domain[key] = currentBestKey
+            winners.add(currentBestKey)
     winners = list(winners)
-    winners.sort()
+    winners.sort(key=int)
 
-    lines = "\\begin\{center\}\n\\begin\{tabular\}\{"
-    for _ in range(len(winners)+1):
+    lines = "\\begin{center}\n\\newrobustcmd{\\B}{\\bfseries}\\setlength\\tabcolsep{3pt}\\begin{tabular}{"
+    lines += "| l"
+    for _ in range(len(winners)):
         lines += "| c"
-    lines += "|\}\n\\hline\n"
-    lines = " "
+    lines += "|}\n\\hline\n"
+    lines += " Domain "
     for winner in winners:
         lines += f" & {winner}"
-    lines += "\\\\[0.5ex]\n"
+    lines += "\\\\[0.5ex]\n\\hline\n"
     
     for key in results[somekey].keys():
-        lines += f"{key} "
+        if key == "Totalscore":
+            lines += "\hline\n"
+        lines += f"{domain_names_shortened[key]} "
         for winner in winners:
             lines += "& "
-            if winner_domain[key] == winner:
+            if key in winner_domain and winner_domain[key] == winner:
                 lines += "\B "
             lines += f"{results[winner][key]} "
-        lines += f"{results[winner][key]}\\\\ \n\\hline\n"
-    lines += "\\end\{tabular\}\n\\end\{center\}"
+        lines += f"\\\\ \n"
+    lines += "\\hline\n"
+    lines += "\\end{tabular}\n\\end{center}"
 
     print(lines)
 
@@ -80,9 +119,8 @@ if __name__ == "__main__":
     instance_path = convert_relative(sys.argv[1])
 
     metric = sys.argv[2]
-    bigger_is_better = bool(sys.argv[3])
+    bigger_is_better = True if sys.argv[3] == 'True' else False
 
-  
     runAndCollect(instance_path, metric, bigger_is_better)
 
 
