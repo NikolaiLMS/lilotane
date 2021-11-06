@@ -38,6 +38,8 @@ protected:
     int _invalid_fluent_preconditions_found_varrestrictions = 0;
     int _invalid_fluent_preconditions_found_via_postconditions = 0;
     int _invalid_subtasks_found = 0;
+    int _variables_restricted = 0;
+
     HtnInstance& _htn;
     USigSet _pos_layer_facts;
     USigSet _neg_layer_facts;
@@ -107,6 +109,10 @@ public:
 
    int getNumEffects() {
         return _util.getNumEffects();
+    }
+
+   int getNumVariablesRestricted() {
+        return _variables_restricted;
     }
 
     void resetReachability() {

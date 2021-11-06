@@ -76,6 +76,7 @@ public:
             // for (const auto& [id, sigset]: _new_postconditions) {
             //     Log::e("%s: %s\n", TOSTR(id), TOSTR(sigset));
             // }
+            _variables_restricted += freeArgRestrictions.size();
             return groundEffects(_final_effects_positive, _final_effects_negative, freeArgRestrictions);
         } else {
             _nodes_left -= factFrame.numDirectChildren;
@@ -85,6 +86,7 @@ public:
                 if (!checkSubtaskDFS(subtask, _final_effects_positive, _final_effects_negative, _max_depth - 1, s, freeArgRestrictions, postconditionCopy)) {
                     _invalid_subtasks_found++;
                     //Log::e("subtask %i is not valid\n", subtaskIdx);
+                    _variables_restricted += freeArgRestrictions.size();
                     throw std::invalid_argument("getPFC: Operator has subtask with no valid children\n");
                 }
                 subtaskIdx++;
@@ -110,6 +112,7 @@ public:
             // for (const auto& [id, sigset]: _new_postconditions) {
             //     Log::e("%s: %s\n", TOSTR(id), TOSTR(sigset));
             // }
+            _variables_restricted += freeArgRestrictions.size();
             return groundEffects(_final_effects_positive, _final_effects_negative, freeArgRestrictions);
             //Log::e("PFC: %s\n", TOSTR(pfc));
         }
@@ -136,7 +139,7 @@ public:
 
             SigSet subtitutedRigidPreconditions = ff.rigidPreconditions;
             SigSet subtitutedFluentPreconditions = ff.fluentPreconditions;
-
+            size_t oldArgRestrictionSize = globalFreeArgRestrictions.size();
             bool preconditionsValid = restrictNewVariables(subtitutedRigidPreconditions, subtitutedFluentPreconditions, newSub, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache(), 
                 child.newArgs, foundEffectsPositiveCopy, foundEffectsNegativeCopy, oldPostconditions, s);
             if (preconditionsValid) preconditionsValid = checkPreconditionValidityRigid(subtitutedRigidPreconditions, globalFreeArgRestrictions);
@@ -144,6 +147,9 @@ public:
                 preconditionsValid = checkPreconditionValidityFluent(subtitutedFluentPreconditions, childEffectsPositive, childEffectsNegative, globalFreeArgRestrictions, oldPostconditions);
             }
             if (preconditionsValid) {
+                if (globalFreeArgRestrictions.size() > oldArgRestrictionSize) {
+                    _nodes_left += _invalid_node_increase;
+                }
                 childValid = true;
                 if (child.subtasks.size() == 0 || _nodes_left < child.numDirectChildren) {
                     substituteEffectsAndAdd(ff.effects, newSub, foundEffectsPos, foundEffectsNeg, childPostconditions, globalFreeArgRestrictions);
