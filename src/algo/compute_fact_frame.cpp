@@ -421,6 +421,7 @@ void FactAnalysisPreprocessing::fillPFCNodesTopDownBFS(std::vector<int>& ordered
                 subtasks = nextSubtasks;
             }
             result.subtasks = (*tempSubtasks[0])[opId].subtasks;
+            result.numDirectChildren = (*tempSubtasks[0])[opId].numDirectChildren;
             free(tempSubtasks[0]);
             tempSubtasks[0] = NULL;
             result.numNodes = numNodes;

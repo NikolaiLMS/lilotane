@@ -145,6 +145,18 @@ public:
             if (preconditionsValid) preconditionsValid = checkPreconditionValidityRigid(subtitutedRigidPreconditions, globalFreeArgRestrictions);
             if (preconditionsValid && _check_fluent_preconditions) {
                 preconditionsValid = checkPreconditionValidityFluent(subtitutedFluentPreconditions, childEffectsPositive, childEffectsNegative, globalFreeArgRestrictions, oldPostconditions);
+            if (preconditionsValid) {
+                for (const auto& fact: ArgIterator::getFullInstantiation(ff.sig.substitute(newSub), _htn, globalFreeArgRestrictions, true)) {
+                    preconditionsValid = false;
+                    Substitution tempSub = Substitution(ff.sig.substitute(newSub)._args, fact._args);
+                    if (preconditionsValid) preconditionsValid = checkPreconditionValidityRigidGround(ff.rigidPreconditions, tempSub);
+                    if (preconditionsValid) {
+                        preconditionsValid = checkPreconditionValidityFluentGround(ff.fluentPreconditions, childEffectsPositive, childEffectsNegative, globalFreeArgRestrictions, oldPostconditions, tempSub);
+                    }
+                    if (preconditionsValid) {
+                        break;
+                    }
+                }
             }
             if (preconditionsValid) {
                 if (globalFreeArgRestrictions.size() > oldArgRestrictionSize) {
