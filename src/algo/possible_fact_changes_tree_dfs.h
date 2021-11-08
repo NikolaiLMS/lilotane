@@ -139,12 +139,12 @@ public:
 
             SigSet subtitutedRigidPreconditions = ff.rigidPreconditions;
             SigSet subtitutedFluentPreconditions = ff.fluentPreconditions;
-            size_t oldArgRestrictionSize = globalFreeArgRestrictions.size();
             bool preconditionsValid = restrictNewVariables(subtitutedRigidPreconditions, subtitutedFluentPreconditions, newSub, globalFreeArgRestrictions, _preprocessing.getRigidPredicateCache(), 
                 child.newArgs, foundEffectsPositiveCopy, foundEffectsNegativeCopy, oldPostconditions, s);
             if (preconditionsValid) preconditionsValid = checkPreconditionValidityRigid(subtitutedRigidPreconditions, globalFreeArgRestrictions);
             if (preconditionsValid && _check_fluent_preconditions) {
                 preconditionsValid = checkPreconditionValidityFluent(subtitutedFluentPreconditions, childEffectsPositive, childEffectsNegative, globalFreeArgRestrictions, oldPostconditions);
+            }
             if (preconditionsValid) {
                 for (const auto& fact: ArgIterator::getFullInstantiation(ff.sig.substitute(newSub), _htn, globalFreeArgRestrictions, true)) {
                     preconditionsValid = false;
@@ -159,9 +159,6 @@ public:
                 }
             }
             if (preconditionsValid) {
-                if (globalFreeArgRestrictions.size() > oldArgRestrictionSize) {
-                    _nodes_left += _invalid_node_increase;
-                }
                 childValid = true;
                 if (child.subtasks.size() == 0 || _nodes_left < child.numDirectChildren) {
                     substituteEffectsAndAdd(ff.effects, newSub, foundEffectsPos, foundEffectsNeg, childPostconditions, globalFreeArgRestrictions);
