@@ -167,6 +167,12 @@ def getNumVariablesRestricted(solution_path: str) -> int:
     return num_effects_reduction
 
 @catchProcessError
+def getNumNodesVariablesRestricted(solution_path: str) -> int:
+    num_effects_reduction = int(subprocess.check_output([f"grep 'number of nodes variables restricted' {solution_path} |" + " awk '{print $8}'"], shell=True).decode())
+    logger.error(f"num_effects_operation: : {num_effects_reduction}")
+    return num_effects_reduction
+
+@catchProcessError
 def getNumInvalidSubtasks(solution_path: str) -> int:
     num_effects_reduction = int(subprocess.check_output([f"grep 'invalid subtasks found in getPFC' {solution_path} |" + " awk '{print $8}'"], shell=True).decode())
     logger.error(f"num_effects_operation: : {num_effects_reduction}")
@@ -187,7 +193,7 @@ def getRamNeeded(solution_path: str) -> int:
 figures_all = ['depth', 'num_clauses', 'invalid_subtasks', 'invalid_rigid_preconditions', 'invalid_rigid_preconditions_total', 'invalid_rigid_preconditions_varrestrictions',
 'invalid_fluent_preconditions', 'invalid_fluent_preconditions_total', 'invalid_fluent_preconditions_varrestrictions', 
  'invalid_fluent_preconditions_via_postconditions', 'preprocessing_time', 'num_mined_preconditions', 
- 'num_effects_operations', 'ram_needed', 'num_variables_restricted', 'num_invalid_subtasks']
+ 'num_effects_operations', 'ram_needed', 'num_variables_restricted', 'num_invalid_subtasks', 'num_nodes_variables_restricted']
 
 figures_finished = ['time_needed', 'plan_length', 'time_instantiating', 'time_encoding', 'time_satsolving']
 
@@ -200,7 +206,8 @@ get_figure = {'depth': getLastIteration, 'num_clauses': getNumClauses, 'invalid_
   'invalid_fluent_preconditions_total': getInvalidFluentPreconditionsTotal, 
   'invalid_fluent_preconditions_varrestrictions': getInvalidFluentPreconditionsVarrestrictions, 
   'invalid_fluent_preconditions_via_postconditions': getInvalidFluentPreconditionsViaPostconditions,
-  'num_variables_restricted': getNumVariablesRestricted, 'num_invalid_subtasks': getNumInvalidSubtasks}
+  'num_variables_restricted': getNumVariablesRestricted, 'num_nodes_variables_restricted': getNumNodesVariablesRestricted,
+  'num_invalid_subtasks': getNumInvalidSubtasks}
 
 def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validatorPath: str, timeout: int, additional_params: str, runwatch_path: str):
     global get_figure

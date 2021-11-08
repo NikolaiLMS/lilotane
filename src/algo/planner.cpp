@@ -999,4 +999,5 @@ void Planner::printStatistics() {
     Log::i("# invalid subtasks found in getPFC: %i\n", _analysis->getInvalidSubtasksFound());
     Log::i("# number effects in operation fact_frames: %i\n", _analysis->getNumEffects());
     Log::i("# number of variables restricted: %i\n", _analysis->getNumVariablesRestricted());
+    Log::i("# number of nodes variables restricted: %i\n", _analysis->getNumNodesVariablesRestricted());
 }

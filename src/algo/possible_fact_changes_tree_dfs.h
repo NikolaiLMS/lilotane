@@ -149,6 +149,7 @@ public:
             if (preconditionsValid) {
                 if (globalFreeArgRestrictions.size() > oldArgRestrictionSize) {
                     _nodes_left += _invalid_node_increase;
+                    _nodes_variables_restricted++;
                 }
                 childValid = true;
                 if (child.subtasks.size() == 0 || _nodes_left < child.numDirectChildren) {
