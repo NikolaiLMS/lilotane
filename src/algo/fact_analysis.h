@@ -261,10 +261,7 @@ public:
     bool checkPreconditionValidityFluent(SigSet& preconditions, NodeHashMap<int, USigSet>& foundEffectsPositive, 
         NodeHashMap<int, USigSet>& foundEffectsNegative, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions,
         NodeHashMap<int, SigSet>& postconditions);
-    bool checkPreconditionValidityRigidGround(const SigSet& preconditions, Substitution& s);
-    bool checkPreconditionValidityFluentGround(SigSet& preconditions, NodeHashMap<int, USigSet>& foundEffectsPositive, 
-    NodeHashMap<int, USigSet>& foundEffectsNegative, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions,
-    NodeHashMap<int, SigSet>& postconditions, Substitution& s);
+    
     bool restrictNewVariables(SigSet& preconditions, SigSet& fluentPreconditions, Substitution& s, 
         NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
         FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache, FlatHashSet<int> nodeArgs,

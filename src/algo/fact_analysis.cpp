@@ -206,17 +206,6 @@ bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, N
     return preconditionsValid;
 }
 
-bool FactAnalysis::checkPreconditionValidityRigidGround(const SigSet& preconditions, Substitution& s) {
-    for (auto precondition : preconditions) {
-        precondition.apply(s);
-        //Log::e("checking rigid precondition: %s\n", TOSTR(substitutedPrecondition));
-        //Log::d("Found ground precondition without qconstants: %s\n", TOSTR(substitutedPrecondition));
-        if (!(!precondition._negated != !_init_state.count(precondition._usig))) return false;
-
-    }
-    return true;
-}
-
 bool FactAnalysis::checkPreconditionValidityFluent(SigSet& preconditions, NodeHashMap<int, USigSet>& foundEffectsPositive, 
     NodeHashMap<int, USigSet>& foundEffectsNegative, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions,
     NodeHashMap<int, SigSet>& postconditions) {
@@ -254,25 +243,6 @@ bool FactAnalysis::checkPreconditionValidityFluent(SigSet& preconditions, NodeHa
             //Log::e("Found invalid fluent precondition: %s\n", TOSTR(substitutedPrecondition));
             _invalid_fluent_preconditions_found++;
             break;
-        }
-    }
-    return preconditionsValid;
-}
-
-bool FactAnalysis::checkPreconditionValidityFluentGround(SigSet& preconditions, NodeHashMap<int, USigSet>& foundEffectsPositive, 
-    NodeHashMap<int, USigSet>& foundEffectsNegative, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions,
-    NodeHashMap<int, SigSet>& postconditions, Substitution& s) {
-    bool preconditionsValid = true;
-    for (auto precondition : preconditions) {
-        //Log::e("Checking fluent precondition: %s\n", TOSTR(substitutedPrecondition));
-        precondition.apply(s);
-        if (precondition._negated) {
-            preconditionsValid = countNegativeGround(foundEffectsNegative[precondition._usig._name_id], precondition._usig, freeArgRestrictions) || !_init_state.count(precondition._usig);
-        } else {
-            preconditionsValid = countPositiveGround(foundEffectsPositive[precondition._usig._name_id], precondition._usig, freeArgRestrictions);
-        }
-        if (!preconditionsValid) {
-            return preconditionsValid;
         }
     }
     return preconditionsValid;
