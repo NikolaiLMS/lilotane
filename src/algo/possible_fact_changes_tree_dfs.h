@@ -1,22 +1,25 @@
 #include "util/params.h"
 #include "algo/fact_analysis.h"
 #include "util/log.h"
+#include <iostream>
+#include <iomanip>
 
 class PFCTreeDFS: public FactAnalysis {
 private:
+    const float _restrict_invalid_factor = 0.18f;
     FactAnalysisPreprocessing _preprocessing;
     bool _check_fluent_preconditions;
     int _max_depth;
     int _init_node_limit;
     int _invalid_node_increase;
-    int _restrict_vars_increase;
-    int _nodes_left;
+    float _restrict_vars_increase;
+    float _nodes_left;
 public:
     PFCTreeDFS(HtnInstance& htn, Parameters& params): 
         FactAnalysis(htn, params), _preprocessing(htn, _fact_frames, _util, params, _init_state), 
         _check_fluent_preconditions(bool(params.getIntParam("pfcFluentPreconditions", 0))), _max_depth(params.getIntParam("pfcTreeDepth", 1)),
         _init_node_limit(params.getIntParam("pfcInitNodeLimit")), _invalid_node_increase(params.getIntParam("pfcInvalidNodeIncrease")),
-        _restrict_vars_increase(params.getIntParam("pfcRestrictVarsIncrease")) {
+        _restrict_vars_increase(float(_invalid_node_increase)*_restrict_invalid_factor) {
     }
 
     void computeFactFrames() {
@@ -24,7 +27,7 @@ public:
     }
 
     SigSet getPossibleFactChanges(const USignature& sig) {
-        _nodes_left = _init_node_limit;
+        _nodes_left = float(_init_node_limit);
         _final_effects_positive.clear();
         _final_effects_negative.clear();
         // Log::e("old postconditions: \n");
@@ -148,7 +151,7 @@ public:
             }
             if (preconditionsValid) {
                 if (globalFreeArgRestrictions.size() > oldArgRestrictionSize) {
-                    _nodes_left += _invalid_node_increase;
+                    _nodes_left += _restrict_vars_increase;
                     _nodes_variables_restricted++;
                 }
                 childValid = true;
@@ -171,7 +174,7 @@ public:
                     }
                 }
             } else {
-                _nodes_left += _invalid_node_increase;
+                _nodes_left += float(_invalid_node_increase);
             }
             if (childValid) {
                 if (firstChild) {
