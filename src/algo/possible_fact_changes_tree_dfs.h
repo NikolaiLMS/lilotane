@@ -15,7 +15,7 @@ private:
 public:
     PFCTreeDFS(HtnInstance& htn, Parameters& params): 
         FactAnalysis(htn, params), _preprocessing(htn, _fact_frames, _util, params, _init_state), 
-        _check_fluent_preconditions(bool(params.getIntParam("pfcFluentPreconditions", 0))), _max_depth(params.getIntParam("pfcTreeDepth", 1)),
+        _check_fluent_preconditions(bool(params.getIntParam("pfcFluentPreconditions", 1))), _max_depth(params.getIntParam("pfcTreeDepth", 1)),
         _init_node_limit(params.getIntParam("pfcInitNodeLimit")), _invalid_node_increase(params.getIntParam("pfcInvalidNodeIncrease")){
     }
 

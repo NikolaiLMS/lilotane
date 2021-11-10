@@ -71,7 +71,7 @@ void Parameters::setDefaults() {
     setParam("aar", "1"); // acknowledge action repetitions
     setParam("vp", "0"); // verify plan before printing it
     setParam("wf", "0"); // output formula to f.cnf
-    setParam("pfc", "base"); // pfc type, base, tree, condeffs
+    setParam("pfc", "treedfs"); // pfc type, base, tree, condeffs
     setParam("pfcNumNodes", "128"); // numNodes param for tree preprocessing
     setParam("pfcFluentPreconditions", "1"); // check fluent preconditions
     setParam("pfcPostconditions", "1"); // check reliable effects and subsequently prune effects in fact_frame preprocessing

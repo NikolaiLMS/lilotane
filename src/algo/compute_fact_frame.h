@@ -33,7 +33,7 @@ private:
     FlatHashSet<int> operationsWithCycleInDescent;
 public:
     FactAnalysisPreprocessing (HtnInstance& htn, NodeHashMap<int, FactFrame>& fact_frames, FactAnalysisUtil& util, Parameters& params, USigSet& init_state) : 
-        _htn(htn), _fact_frames(fact_frames), _util(util), MAX_NODES(params.getIntParam("pfcNumNodes", 100)), 
+        _htn(htn), _fact_frames(fact_frames), _util(util), MAX_NODES(params.getIntParam("pfcNumNodes", 128)), 
         _postcondition_pruning(bool(params.getIntParam("pfcPostconditions"))), _init_state(init_state) {}
 
     void computeFactFramesBase();
