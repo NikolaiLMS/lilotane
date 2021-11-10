@@ -72,12 +72,12 @@ void Parameters::setDefaults() {
     setParam("vp", "0"); // verify plan before printing it
     setParam("wf", "0"); // output formula to f.cnf
     setParam("pfc", "base"); // pfc type, base, tree, condeffs
-    setParam("pfcNumNodes", "1000"); // numNodes param for tree preprocessing
+    setParam("pfcNumNodes", "128"); // numNodes param for tree preprocessing
     setParam("pfcFluentPreconditions", "1"); // check fluent preconditions
     setParam("pfcPostconditions", "1"); // check reliable effects and subsequently prune effects in fact_frame preprocessing
-    setParam("pfcRestrictLimit", "100"); //
-    setParam("pfcInitNodeLimit", "40");
-    setParam("pfcInvalidNodeIncrease", "3");
+    setParam("pfcRestrictLimit", "512"); //
+    setParam("pfcInitNodeLimit", "8");
+    setParam("pfcInvalidNodeIncrease", "4");
 }
 
 void Parameters::printUsage() {
