@@ -27,7 +27,7 @@ def catchProcessError(func):
     return wrapper
 
 def validateSolution(solution_path: str, domain_file_path, instance_file_path, validatorPath:str):
-    cmd = f"{validatorPath} {domain_file_path} {instance_file_path} -l -verify {solution_path} | " + "sed 's/\x1B\[[0-9;]\{1,\}[A-Za-z]//g'"
+    cmd = f"{validatorPath} {domain_file_path} {instance_file_path} -l -v -C {solution_path}"
     out = subprocess.check_output([cmd], shell=True).decode()
     return "Plan verification result: true" in out
 
@@ -151,10 +151,7 @@ def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validat
             p.wait()
             instance_result = None
             unfinished_instance_result = None
-            if return_vals[job_id] != 0 and return_vals[job_id] != 9:
-                logger.warning(f"Execution return value {return_vals[job_id]} != 0,9: log: {result_path}")
-                num_errored += 1
-            elif not hasSolution(result_path):
+            if return_vals[job_id] != 0 or not hasSolution(result_path):
                 unfinished_instance_result = {'file_id': file_id}
                 for figure_type in figures_all:
                     unfinished_instance_result[figure_type] = get_figure[figure_type](result_path)

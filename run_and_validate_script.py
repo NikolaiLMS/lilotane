@@ -27,7 +27,7 @@ def catchProcessError(func):
     return wrapper
 
 def validateSolution(solution_path: str, domain_file_path, instance_file_path, validatorPath:str):
-    cmd = f"{validatorPath} {domain_file_path} {instance_file_path} -verify {solution_path} | " + "sed 's/\x1B\[[0-9;]\{1,\}[A-Za-z]//g'"
+    cmd = f"{validatorPath} {domain_file_path} {instance_file_path} -v -C {solution_path}"
     out = subprocess.check_output([cmd], shell=True).decode()
     return "Plan verification result: true" in out
 
