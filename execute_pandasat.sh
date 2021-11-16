@@ -25,5 +25,3 @@ ${BINARIES_DIR}/pandaPIengineSAT -s $SAS_FILE &
 child=$!
 wait "$child"
 
-rm $SAS_FILE
-rm $PARSED_FILE

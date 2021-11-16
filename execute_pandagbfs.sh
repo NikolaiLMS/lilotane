@@ -22,6 +22,3 @@ ${BINARIES_DIR}/pandaPIengine --heuristic='rc2(add)' $SAS_FILE &
 
 child=$!
 wait "$child"
-
-rm $PARSED_FILE
-rm $SAS_FILE
