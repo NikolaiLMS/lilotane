@@ -39,7 +39,7 @@ def hasStatistics(outputpath: str) -> bool:
 
 @catchProcessError
 def getRuntime(solution_path: str) -> float:
-    runtime = float(subprocess.check_output([f"grep 'End of solution plan' {solution_path} |" + " awk '{print $1}'"], shell=True).decode())
+    runtime = float(subprocess.check_output([f"grep 'TIME_SECS' {solution_path} |" + " awk '{print $6}'"], shell=True).decode()[:-2])
     logger.debug(f"Runtime: {runtime}")
     return runtime
 
