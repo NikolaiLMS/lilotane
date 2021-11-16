@@ -34,17 +34,19 @@ def validateSolution(solution_path: str, domain_file_path, instance_file_path, v
     return "Plan verification result: true" in out
 
 def hasSolution(outputpath: str) -> bool:
-    return (not bool(os.system(f"grep -r 'Status: Solved' {outputpath}"))) and (not bool(os.system(f"grep -r '<==' {outputpath}")))
+    return (not bool(os.system(f"grep -r '<==' {outputpath}"))) and (not bool(os.system(f"grep -r '<==' {outputpath}")))
 
 @catchProcessError
 def getRuntime(solution_path: str) -> float:
-    runtime = float(subprocess.check_output([f"grep 'Search time' {solution_path} |" + " awk '{print $4}'"], shell=True).decode()[:-2])
+    runtime = float(subprocess.check_output([f"grep 'TIME_SECS' {solution_path} |" + " awk '{print $6}'"], shell=True).decode()[:-2])
     logger.debug(f"Runtime: {runtime}")
     return runtime
 
 @catchProcessError
 def getSolutionLength(solution_path: str) -> float:
-    solution_length = int(subprocess.check_output([f"grep 'Found solution of length' {solution_path} |" + " awk '{print $6}'"], shell=True).decode())
+    root_line_number = int(subprocess.check_output([f"sed -n '/root /=' {solution_path}"], shell=True).decode())
+    solution_start_line_number = int(subprocess.check_output([f"sed -n '/==>/=' {solution_path}"], shell=True).decode())
+    solution_length = root_line_number - solution_start_line_number - 1
     logger.debug(f"Solution_length: : {solution_length}")
     return solution_length
 
