@@ -2,7 +2,7 @@ import os
 import sys
 
 
-metrics = ['# slv.', 'Pr.', 'IRP', 'IRPVR', 'IRPCP', 'IFP', 'IFPVR', 'IFPCP', 'IFPP', 'ISF', 'VR']
+metrics = ['\# slv.', 'Pr.', 'IRP', 'IRPVR', 'IRPCP', 'IFP', 'IFPVR', 'IFPCP', 'IFPP', 'ISF', 'VR']
 
 domain_names_shortened = {"Robot": "Robot",
         "Blocksworld-HPDDL": "Blocksworld-H",
@@ -27,8 +27,7 @@ domain_names_shortened = {"Robot": "Robot",
         "Minecraft-Regular": "Minecraft-R",
         "Multiarm-Blocksworld": "Multiarm-B",
         "Towers":"Towers",
-        "Rover-GTOHP": "Rover-GTOHP",
-        "Totalscore": "Total score"}
+        "Rover-GTOHP": "Rover-GTOHP",}
 
 
 def runAndCollect(newlilotane_dir: str, oldlilotane_dir: str ):
@@ -42,7 +41,7 @@ def runAndCollect(newlilotane_dir: str, oldlilotane_dir: str ):
         splitline = line.split(" ")
         number_solved_per_domain[splitline[1]] += 1
         num_clauses_first[splitline[1]][splitline[0]] = int(splitline[2])
-    results['# slv.'] = number_solved_per_domain.copy()
+    results['\# slv.'] = number_solved_per_domain.copy()
 
     number_solved_per_domain_cut = {key: 0 for key in domain_names_shortened.keys()}
     num_clauses_reduction = {key: {} for key in domain_names_shortened.keys()}
@@ -53,28 +52,15 @@ def runAndCollect(newlilotane_dir: str, oldlilotane_dir: str ):
         if splitline[0] in num_clauses_first[splitline[1]]:
             number_solved_per_domain_cut[splitline[1]] += 1
             num_clauses_reduction[splitline[1]][splitline[0]] = (num_clauses_first[splitline[1]][splitline[0]] - int(splitline[2]))/int(splitline[2])
-    results['# slv.'] = number_solved_per_domain.copy()
 
     num_clauses_avg = {}
     for domain in domain_names_shortened.keys():
-        sum = 0
+        sum_ = 0
         for inst in num_clauses_reduction[domain].keys():
-            sum += num_clauses_reduction[domain][inst]
-        num_clauses_avg[domain] = sum/number_solved_per_domain_cut[splitline[1]]
+            sum_ += num_clauses_reduction[domain][inst]
+        print(sum_/number_solved_per_domain_cut[splitline[1]])
+        num_clauses_avg[domain] = sum_/number_solved_per_domain_cut[splitline[1]]
     results['Pr.'] = num_clauses_avg.copy()
-
-
-    irptotal_avg_per_domain = {key: 0 for key in domain_names_shortened.keys()}
-    with open(f"{newlilotane_dir}/invalid_rigid_preconditions_total.txt") as f:
-        irptotal_lines = f.readlines()
-    for line in irptotal_lines:
-        splitline = line.split(" ")
-        irptotal_avg_per_domain[splitline[1]] += int(splitline[2])
-    
-    for domain in domain_names_shortened.keys():
-        irptotal_avg_per_domain[domain] = irptotal_avg_per_domain[domain]/number_solved_per_domain[domain]
-    results['Pr.'] = irptotal_avg_per_domain.copy()
-
 
 
     irptotal_avg_per_domain = {key: 0 for key in domain_names_shortened.keys()}
@@ -196,7 +182,15 @@ def runAndCollect(newlilotane_dir: str, oldlilotane_dir: str ):
         lines += f"{domain_names_shortened[domain]} "
         for metric in metrics:
             lines += "& "
-            lines += f"{results[domain][metric]} "
+            value = results[metric][domain]
+            length = len(str(int(value)))
+            if length < 4:
+                print(f"value before: {value}")
+                value = round(value, 4-length)
+                print(f"value after: {value}")
+            else:
+                value = round(value)
+            lines += f"{value} "
         lines += f"\\\\ \n"
     lines += "\\hline\n"
     lines += "\\end{tabular}\n\\end{center}"
@@ -209,6 +203,6 @@ def convert_relative(path: str) -> str:
 if __name__ == "__main__":
 
     newlilotane_dir = convert_relative(sys.argv[1])
-    oldlilotane_dir = convert_relative(sys.argv[1])
+    oldlilotane_dir = convert_relative(sys.argv[2])
 
     runAndCollect(newlilotane_dir, oldlilotane_dir)
