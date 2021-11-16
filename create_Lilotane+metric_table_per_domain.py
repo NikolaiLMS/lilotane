@@ -41,7 +41,7 @@ def runAndCollect(newlilotane_dir: str, oldlilotane_dir: str ):
     for line in num_clauses_lines:
         splitline = line.split(" ")
         number_solved_per_domain[splitline[1]] += 1
-        num_clauses_first[splitline[1]][splitline[0]] = splitline[2]
+        num_clauses_first[splitline[1]][splitline[0]] = int(splitline[2])
     results['# slv.'] = number_solved_per_domain.copy()
 
     number_solved_per_domain_cut = {key: 0 for key in domain_names_shortened.keys()}
@@ -52,7 +52,7 @@ def runAndCollect(newlilotane_dir: str, oldlilotane_dir: str ):
         splitline = line.split(" ")
         if splitline[0] in num_clauses_first[splitline[1]]:
             number_solved_per_domain_cut[splitline[1]] += 1
-            num_clauses_reduction[splitline[1]][splitline[0]] = (num_clauses_first[splitline[1]][splitline[0]] - splitline[2])/splitline[2]
+            num_clauses_reduction[splitline[1]][splitline[0]] = (num_clauses_first[splitline[1]][splitline[0]] - int(splitline[2]))/int(splitline[2])
     results['# slv.'] = number_solved_per_domain.copy()
 
     num_clauses_avg = {}
@@ -69,7 +69,7 @@ def runAndCollect(newlilotane_dir: str, oldlilotane_dir: str ):
         irptotal_lines = f.readlines()
     for line in irptotal_lines:
         splitline = line.split(" ")
-        irptotal_avg_per_domain[splitline[1]] += splitline[2]
+        irptotal_avg_per_domain[splitline[1]] += int(splitline[2])
     
     for domain in domain_names_shortened.keys():
         irptotal_avg_per_domain[domain] = irptotal_avg_per_domain[domain]/number_solved_per_domain[domain]
@@ -82,7 +82,7 @@ def runAndCollect(newlilotane_dir: str, oldlilotane_dir: str ):
         irptotal_lines = f.readlines()
     for line in irptotal_lines:
         splitline = line.split(" ")
-        irptotal_avg_per_domain[splitline[1]] += splitline[2]
+        irptotal_avg_per_domain[splitline[1]] += int(splitline[2])
     
     for domain in domain_names_shortened.keys():
         irptotal_avg_per_domain[domain] = irptotal_avg_per_domain[domain]/number_solved_per_domain[domain]
@@ -94,7 +94,7 @@ def runAndCollect(newlilotane_dir: str, oldlilotane_dir: str ):
         irptotal_lines = f.readlines()
     for line in irptotal_lines:
         splitline = line.split(" ")
-        irpvr_avg_per_domain[splitline[1]] += splitline[2]
+        irpvr_avg_per_domain[splitline[1]] += int(splitline[2])
     
     for domain in domain_names_shortened.keys():
         irpvr_avg_per_domain[domain] = irpvr_avg_per_domain[domain]/number_solved_per_domain[domain]
@@ -106,7 +106,7 @@ def runAndCollect(newlilotane_dir: str, oldlilotane_dir: str ):
         irptotal_lines = f.readlines()
     for line in irptotal_lines:
         splitline = line.split(" ")
-        irpvr_avg_per_domain[splitline[1]] += splitline[2]
+        irpvr_avg_per_domain[splitline[1]] += int(splitline[2])
     
     for domain in domain_names_shortened.keys():
         irpvr_avg_per_domain[domain] = irpvr_avg_per_domain[domain]/number_solved_per_domain[domain]
@@ -118,7 +118,7 @@ def runAndCollect(newlilotane_dir: str, oldlilotane_dir: str ):
         irptotal_lines = f.readlines()
     for line in irptotal_lines:
         splitline = line.split(" ")
-        irpvr_avg_per_domain[splitline[1]] += splitline[2]
+        irpvr_avg_per_domain[splitline[1]] += int(splitline[2])
     
     for domain in domain_names_shortened.keys():
         irpvr_avg_per_domain[domain] = irpvr_avg_per_domain[domain]/number_solved_per_domain[domain]
@@ -129,7 +129,7 @@ def runAndCollect(newlilotane_dir: str, oldlilotane_dir: str ):
         irptotal_lines = f.readlines()
     for line in irptotal_lines:
         splitline = line.split(" ")
-        irpvr_avg_per_domain[splitline[1]] += splitline[2]
+        irpvr_avg_per_domain[splitline[1]] += int(splitline[2])
     
     for domain in domain_names_shortened.keys():
         irpvr_avg_per_domain[domain] = irpvr_avg_per_domain[domain]/number_solved_per_domain[domain]
@@ -140,7 +140,7 @@ def runAndCollect(newlilotane_dir: str, oldlilotane_dir: str ):
         irptotal_lines = f.readlines()
     for line in irptotal_lines:
         splitline = line.split(" ")
-        irpvr_avg_per_domain[splitline[1]] += splitline[2]
+        irpvr_avg_per_domain[splitline[1]] += int(splitline[2])
     
     for domain in domain_names_shortened.keys():
         irpvr_avg_per_domain[domain] = irpvr_avg_per_domain[domain]/number_solved_per_domain[domain]
@@ -151,7 +151,7 @@ def runAndCollect(newlilotane_dir: str, oldlilotane_dir: str ):
         irptotal_lines = f.readlines()
     for line in irptotal_lines:
         splitline = line.split(" ")
-        irpvr_avg_per_domain[splitline[1]] += splitline[2]
+        irpvr_avg_per_domain[splitline[1]] += int(splitline[2])
     
     for domain in domain_names_shortened.keys():
         irpvr_avg_per_domain[domain] = irpvr_avg_per_domain[domain]/number_solved_per_domain[domain]
@@ -163,7 +163,7 @@ def runAndCollect(newlilotane_dir: str, oldlilotane_dir: str ):
         irptotal_lines = f.readlines()
     for line in irptotal_lines:
         splitline = line.split(" ")
-        irpvr_avg_per_domain[splitline[1]] += splitline[2]
+        irpvr_avg_per_domain[splitline[1]] += int(splitline[2])
     
     for domain in domain_names_shortened.keys():
         irpvr_avg_per_domain[domain] = irpvr_avg_per_domain[domain]/number_solved_per_domain[domain]
@@ -174,7 +174,7 @@ def runAndCollect(newlilotane_dir: str, oldlilotane_dir: str ):
         irptotal_lines = f.readlines()
     for line in irptotal_lines:
         splitline = line.split(" ")
-        irpvr_avg_per_domain[splitline[1]] += splitline[2]
+        irpvr_avg_per_domain[splitline[1]] += int(splitline[2])
     
     for domain in domain_names_shortened.keys():
         irpvr_avg_per_domain[domain] = irpvr_avg_per_domain[domain]/number_solved_per_domain[domain]
