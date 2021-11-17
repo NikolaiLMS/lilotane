@@ -69,36 +69,50 @@ def getTimePreprocessing(solution_path: str) -> float:
 
 @catchProcessError
 def getTimeInstantiating(solution_path: str) -> float:
-    time_instantiating = subprocess.check_output([f"grep 'Instantiating ...' -A1 {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
-    time_instantiating_pairs = time_instantiating.split("---\n")
-    time_instantiating = 0.0
-    for pair in time_instantiating_pairs:
-        times = pair.split("\n")
-        time_instantiating += float(times[1]) - float(times[0])
-    logger.debug(f"time_instantiating: : {time_instantiating}")
-    return time_instantiating
+    iteration_times = subprocess.check_output([f"grep 'Iteration ' {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
+    iteration_times = iteration_times.split("\n")[:-1]
+
+    attempting_to_solve_times = subprocess.check_output([f"grep 'Attempting to solve' {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
+    attempting_to_solve_times = attempting_to_solve_times.split("\n")[:-1]
+    
+    encoding_times = subprocess.check_output([f"grep 'Encoding ...' {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
+    encoding_times = encoding_times.split("\n")[:-1]
+    encoding_times = [attempting_to_solve_times[0]] + encoding_times
+
+    time_encoding = 0.0
+    time_encoding = sum([float(x1) - float(x2) for (x1, x2) in zip(encoding_times, iteration_times)])
+
+    return time_encoding/getLilotaneLogTime(solution_path)
     
 @catchProcessError
 def getTimeEncoding(solution_path: str) -> float:
-    time_encoding = subprocess.check_output([f"grep 'Encoding ...' -A1 {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
-    time_encoding_pairs = time_encoding.split("---\n")
+    attempting_to_solve_times = subprocess.check_output([f"grep 'Attempting to solve' {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
+    attempting_to_solve_times = attempting_to_solve_times.split("\n")[:-1]
+    attempting_to_solve_times = attempting_to_solve_times[1:]
+    encoding_times = subprocess.check_output([f"grep 'Encoding ...' {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
+    encoding_times = encoding_times.split("\n")[:-1]
+
     time_encoding = 0.0
-    for pair in time_encoding_pairs:
-        times = pair.split("\n")
-        time_encoding += float(times[1]) - float(times[0])
-    logger.debug(f"time_encoding: : {time_encoding}")
-    return time_encoding
+    time_encoding = sum([float(x1) - float(x2) for (x1, x2) in zip(attempting_to_solve_times, encoding_times)])
+
+    return time_encoding/getLilotaneLogTime(solution_path)
 
 @catchProcessError
 def getTimeSATSolving(solution_path: str) -> float:
-    time_sat_solving = subprocess.check_output([f"grep 'Attempting to solve' -A1 {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
-    time_sat_solving_pairs = time_sat_solving.split("---\n")
+    attempting_to_solve_times = subprocess.check_output([f"grep 'Attempting to solve' {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
+    attempting_to_solve_times = attempting_to_solve_times.split("\n")[:-1]
+    print(attempting_to_solve_times)
+    solved_unsolved_times = subprocess.check_output([f"grep 'Unsolvable at layer' {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
+    solved_unsolved_times = solved_unsolved_times.split("\n")[:-1]
+    found_a_solution_time = subprocess.check_output([f"grep 'Found a solution at layer' {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
+    solved_unsolved_times.append(found_a_solution_time)
+
+    print(solved_unsolved_times)
+
     time_sat_solving = 0.0
-    for pair in time_sat_solving_pairs:
-        times = pair.split("\n")
-        time_sat_solving += float(times[1]) - float(times[0])
-    logger.debug(f"time_sat_solving: : {time_sat_solving}")
-    return time_sat_solving
+    time_sat_solving = sum([float(x1) - float(x2) for (x1, x2) in zip(solved_unsolved_times, attempting_to_solve_times)])
+
+    return time_sat_solving/getLilotaneLogTime(solution_path)
 
 @catchProcessError
 def getInvalidRigidPreconditionsTotal(solution_path: str) -> int:
@@ -143,12 +157,6 @@ def getInvalidFluentPreconditionsViaPostconditions(solution_path: str) -> int:
     return invalid_preconditions
 
 @catchProcessError
-def getInvalidSubtasks(solution_path: str) -> int:
-    invalid_subtasks = int(subprocess.check_output([f"grep 'invalid subtasks found' {solution_path} |" + " awk '{print $8}'"], shell=True).decode())
-    logger.debug(f"invalid_subtasks: : {invalid_subtasks}")
-    return invalid_subtasks
-    
-@catchProcessError
 def getLastIteration(solution_path: str) -> int:
     last_iteration = int(subprocess.check_output([f"grep 'Iteration' {solution_path}"], shell=True).decode().split('\n')[-2].split(' ')[-1][:-1])
     logger.error(f"last_iteration: : {last_iteration}")
@@ -174,7 +182,13 @@ def getNumNodesVariablesRestricted(solution_path: str) -> int:
 
 @catchProcessError
 def getNumInvalidSubtasks(solution_path: str) -> int:
-    num_effects_reduction = int(subprocess.check_output([f"grep 'invalid subtasks found in getPFC' {solution_path} |" + " awk '{print $8}'"], shell=True).decode())
+    num_effects_reduction = int(subprocess.check_output([f"grep 'invalid operations found in getPFC via subtasks' {solution_path} |" + " awk '{print $10}'"], shell=True).decode())
+    logger.error(f"num_effects_operation: : {num_effects_reduction}")
+    return num_effects_reduction
+
+@catchProcessError
+def getNumInvalidOperationsPc(solution_path: str) -> int:
+    num_effects_reduction = int(subprocess.check_output([f"grep 'invalid operations found in getPFC via postconditions' {solution_path} |" + " awk '{print $10}'"], shell=True).decode())
     logger.error(f"num_effects_operation: : {num_effects_reduction}")
     return num_effects_reduction
 
@@ -190,14 +204,20 @@ def getRamNeeded(solution_path: str) -> int:
     logger.error(f"ram_needed: : {ram_needed}")
     return ram_needed
 
-figures_all = ['depth', 'num_clauses', 'invalid_subtasks', 'invalid_rigid_preconditions', 'invalid_rigid_preconditions_total', 'invalid_rigid_preconditions_varrestrictions',
+@catchProcessError
+def getLilotaneLogTime(solution_path: str) -> float:
+    lilotane_log_time = float(subprocess.check_output([f"grep 'End of solution plan' {solution_path} |" + " awk '{print $1}'"], shell=True).decode())
+    logger.error(f"lilotane_log_time: : {lilotane_log_time}")
+    return lilotane_log_time
+
+figures_all = ['depth', 'num_clauses', 'invalid_rigid_preconditions', 'invalid_rigid_preconditions_total', 'invalid_rigid_preconditions_varrestrictions',
 'invalid_fluent_preconditions', 'invalid_fluent_preconditions_total', 'invalid_fluent_preconditions_varrestrictions', 
  'invalid_fluent_preconditions_via_postconditions', 'preprocessing_time', 'num_mined_preconditions', 
- 'num_effects_operations', 'ram_needed', 'num_variables_restricted', 'num_invalid_subtasks', 'num_nodes_variables_restricted']
+ 'num_effects_operations', 'ram_needed', 'num_variables_restricted', 'num_invalid_operation_via_subtasks', 'num_invalid_operation_via_postconditions', 'num_nodes_variables_restricted']
 
 figures_finished = ['time_needed', 'plan_length', 'time_instantiating', 'time_encoding', 'time_satsolving']
 
-get_figure = {'depth': getLastIteration, 'num_clauses': getNumClauses, 'invalid_subtasks': getInvalidSubtasks, 'invalid_rigid_preconditions': getInvalidRigidPreconditions, 
+get_figure = {'depth': getLastIteration, 'num_clauses': getNumClauses, 'invalid_rigid_preconditions': getInvalidRigidPreconditions, 
   'invalid_fluent_preconditions': getInvalidFluentPreconditions, 'preprocessing_time': getTimePreprocessing, 
   'time_needed': getRuntime, 'plan_length': getSolutionLength, 'num_mined_preconditions': getNumMinedPreconditions,
   'num_effects_operations': getNumEffectsOperations, 'ram_needed': getRamNeeded, 'time_instantiating': getTimeInstantiating, 'time_encoding': getTimeEncoding,
@@ -207,7 +227,7 @@ get_figure = {'depth': getLastIteration, 'num_clauses': getNumClauses, 'invalid_
   'invalid_fluent_preconditions_varrestrictions': getInvalidFluentPreconditionsVarrestrictions, 
   'invalid_fluent_preconditions_via_postconditions': getInvalidFluentPreconditionsViaPostconditions,
   'num_variables_restricted': getNumVariablesRestricted, 'num_nodes_variables_restricted': getNumNodesVariablesRestricted,
-  'num_invalid_subtasks': getNumInvalidSubtasks}
+  'num_invalid_operation_via_subtasks': getNumInvalidSubtasks, 'num_invalid_operation_via_postconditions': getNumInvalidOperationsPc}
 
 def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validatorPath: str, timeout: int, additional_params: str, runwatch_path: str):
     global get_figure
@@ -450,5 +470,3 @@ if __name__ == "__main__":
     runwatch_params = str(sys.argv[9])
 
     runAndCollect(binary, instance_path, output_path, validator_path, timeout, additional_params, runwatch_path)
-
-

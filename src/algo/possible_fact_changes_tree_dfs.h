@@ -38,6 +38,8 @@ public:
             Signature substitutedPrecondition = precondition.substitute(s);
             substitutedPrecondition.negate();
             if (_postconditions.count(substitutedPrecondition._usig._name_id) && _postconditions[substitutedPrecondition._usig._name_id].count(substitutedPrecondition)) {
+                _invalid_fluent_preconditions_found_via_postconditions++;
+                _invalid_operations_found_via_postconditions++;
                 //Log::e("negated substitutedPrecondition: %s found in postconditions\n", TOSTR(substitutedPrecondition));
                 throw std::invalid_argument("getPFC: Operations preconditions invalid because of postconditions\n");
             }
@@ -84,7 +86,7 @@ public:
             for (const auto& subtask: factFrame.subtasks) {
                 //Log::e("Checking subtask %i\n", subtaskIdx);
                 if (!checkSubtaskDFS(subtask, _final_effects_positive, _final_effects_negative, _max_depth - 1, s, freeArgRestrictions, postconditionCopy)) {
-                    _invalid_subtasks_found++;
+                    _invalid_operations_found_via_invalid_subtasks++;
                     //Log::e("subtask %i is not valid\n", subtaskIdx);
                     _variables_restricted += freeArgRestrictions.size();
                     throw std::invalid_argument("getPFC: Operator has subtask with no valid children\n");

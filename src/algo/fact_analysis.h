@@ -37,7 +37,8 @@ protected:
     int _invalid_fluent_preconditions_found = 0;
     int _invalid_fluent_preconditions_found_varrestrictions = 0;
     int _invalid_fluent_preconditions_found_via_postconditions = 0;
-    int _invalid_subtasks_found = 0;
+    int _invalid_operations_found_via_invalid_subtasks = 0;
+    int _invalid_operations_found_via_postconditions = 0;
     int _variables_restricted = 0;
     int _nodes_variables_restricted = 0;
 
@@ -105,7 +106,11 @@ public:
     }
 
     int getInvalidSubtasksFound() {
-        return _invalid_subtasks_found;
+        return _invalid_operations_found_via_invalid_subtasks;
+    }
+
+    int getInvalidOperationsFoundViaPC() {
+        return _invalid_operations_found_via_postconditions;
     }
 
    int getNumEffects() {

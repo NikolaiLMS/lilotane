@@ -996,7 +996,8 @@ void Planner::printStatistics() {
     Log::i("# invalid fluent preconditions found in getPFC: %i\n", _analysis->getInvalidFluentPreconditionsFound());
     Log::i("# invalid fluent preconditions found in getPFC in varrestrictions: %i\n", _analysis->getInvalidFluentPreconditionsFoundByVarRestriction());
     Log::i("# invalid fluent preconditions found in getPFC via postconditions: %i\n", _analysis->getInvalidFluentPreconditionsFoundViaPostconditions());
-    Log::i("# invalid subtasks found in getPFC: %i\n", _analysis->getInvalidSubtasksFound());
+    Log::i("# invalid operations found in getPFC via subtasks: %i\n", _analysis->getInvalidSubtasksFound());
+    Log::i("# invalid operations found in getPFC via postconditions: %i\n", _analysis->getInvalidOperationsFoundViaPC());
     Log::i("# number effects in operation fact_frames: %i\n", _analysis->getNumEffects());
     Log::i("# number of variables restricted: %i\n", _analysis->getNumVariablesRestricted());
     Log::i("# number of nodes variables restricted: %i\n", _analysis->getNumNodesVariablesRestricted());
