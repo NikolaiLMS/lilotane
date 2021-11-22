@@ -78,8 +78,5 @@ private:
 
     void printFactFrameBFS(int opId);
 
-    void findOperationsWithCycles(std::map<int, std::vector<int>>& orderingOplist);
-    bool findCycle(std::map<int, std::vector<int>>& orderingOplist, int operation, FlatHashSet<int>& foundNodes);
-
     FlatHashSet<int> findFluentPredicates(const std::vector<int>& orderedOpIds);
 };

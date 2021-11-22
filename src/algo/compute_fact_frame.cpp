@@ -22,24 +22,6 @@ void FactAnalysisPreprocessing::computeFactFramesBase() {
     // }
 }
 
-void FactAnalysisPreprocessing::findOperationsWithCycles(std::map<int, std::vector<int>>& orderingOplist) {
-    for (const auto& [operation, neighbours]: orderingOplist) {
-        FlatHashSet<int> foundNodes;
-        if (findCycle(orderingOplist, operation, foundNodes)){
-            // Log::e("cycle found in operation %s\n", TOSTR(operation));
-            operationsWithCycleInDescent.insert(operation);
-        }
-    }
-}
-
-bool FactAnalysisPreprocessing::findCycle(std::map<int, std::vector<int>>& orderingOplist, int operation, FlatHashSet<int>& foundNodes) {
-    if (foundNodes.count(operation)) return true;
-    foundNodes.insert(operation);
-    for (const auto& neighbour: orderingOplist[operation]) {
-        if (findCycle(orderingOplist, neighbour, foundNodes)) return true;
-    }
-    return false;
-}
 
 void FactAnalysisPreprocessing::computeFactFramesTree() {
 
@@ -99,8 +81,6 @@ std::vector<int> FactAnalysisPreprocessing::calcOrderedOpList() {
         orderingOplist[rId].insert(orderingOplist[rId].end(), childIds.begin(), childIds.end());
     }
 
-    //findOperationsWithCycles(orderingOplist);
-
     // Perform a topological ordering on the nodes (operations).
     // As the graph may be cyclic, the ordering is not flawless
     // and can contain forward references.
@@ -115,9 +95,15 @@ void FactAnalysisPreprocessing::fillFactFramesAction(int& opId, int& aId, bool& 
     if (_fact_frames[opId].sig != action.getSignature()) {
         _fact_frames[opId].sig = action.getSignature();
         _fact_frames[opId].preconditions = action.getPreconditions();
+        _fact_frames[opId].postconditions = action.getPreconditions();
         _fact_frames[opId].effects = action.getEffects();
         FlatHashSet<int> posEffPredicates;
         for (const auto& eff: action.getEffects()) {
+            for (const auto& postcondition: action.getPreconditions()) {
+                if (eff._usig._name_id == postcondition._usig._name_id && eff._negated != postcondition._negated) {
+                    _fact_frames[opId].postconditions.erase(postcondition);
+                }
+            }
             if (!eff._negated) {
                 posEffPredicates.insert(eff._usig._name_id);
                 Signature negatedEffectCopy = eff;
@@ -177,7 +163,7 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                 size_t priorEffs = result.effects.size();
                 size_t priorPostconditionSize = result.postconditions.size();
                 size_t priorNegatedPostconditionSize = result.negatedPostconditions.size();
-                SigSet newPostconditions;
+                SigSet newPostconditions = result.preconditions;
                 result.numDirectChildren = 0;
 
                 // For each subtask of the reduction
@@ -203,17 +189,13 @@ void FactAnalysisPreprocessing::fillFactFramesBase(std::vector<int>& orderedOpId
                             Sig::unite(normalizedEffects, result.effects);
                             Sig::unite(normalizedEffects, result.offsetEffects[i]);
                             SigSet childPostconditions;
-                            if (!operationsWithCycleInDescent.count(child._name_id)) {
-                                for (auto& eff : childFrame.postconditions) {
-                                    //Log::e("postcondition: %s\n", TOSTR(eff));
-                                    if (!hasUnboundArgs(eff, argSet)) childPostconditions.insert(eff);
-                                }
-                                for (auto& eff : childFrame.negatedPostconditions) {
-                                    //Log::e("postcondition: %s\n", TOSTR(eff));
-                                    if (!hasUnboundArgs(eff, argSet)) childPostconditions.insert(eff);
-                                }
-                            } else {
-                                newPostconditions.clear();
+                            for (auto& eff : childFrame.postconditions) {
+                                //Log::e("postcondition: %s\n", TOSTR(eff));
+                                if (!hasUnboundArgs(eff, argSet)) childPostconditions.insert(eff);
+                            }
+                            for (auto& eff : childFrame.negatedPostconditions) {
+                                //Log::e("postcondition: %s\n", TOSTR(eff));
+                                if (!hasUnboundArgs(eff, argSet)) childPostconditions.insert(eff);
                             }
                             if (firstChild) {
                                 firstChild = false;
