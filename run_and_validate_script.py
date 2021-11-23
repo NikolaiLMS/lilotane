@@ -115,6 +115,53 @@ def getTimeSATSolving(solution_path: str) -> float:
     return time_sat_solving/getLilotaneLogTime(solution_path)
 
 @catchProcessError
+def getTimeInstantiatingAbs(solution_path: str) -> float:
+    iteration_times = subprocess.check_output([f"grep 'Iteration ' {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
+    iteration_times = iteration_times.split("\n")[:-1]
+
+    attempting_to_solve_times = subprocess.check_output([f"grep 'Attempting to solve' {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
+    attempting_to_solve_times = attempting_to_solve_times.split("\n")[:-1]
+    
+    encoding_times = subprocess.check_output([f"grep 'Encoding ...' {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
+    encoding_times = encoding_times.split("\n")[:-1]
+    encoding_times = [attempting_to_solve_times[0]] + encoding_times
+
+    time_encoding = 0.0
+    time_encoding = sum([float(x1) - float(x2) for (x1, x2) in zip(encoding_times, iteration_times)])
+
+    return time_encoding
+    
+@catchProcessError
+def getTimeEncodingAbs(solution_path: str) -> float:
+    attempting_to_solve_times = subprocess.check_output([f"grep 'Attempting to solve' {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
+    attempting_to_solve_times = attempting_to_solve_times.split("\n")[:-1]
+    attempting_to_solve_times = attempting_to_solve_times[1:]
+    encoding_times = subprocess.check_output([f"grep 'Encoding ...' {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
+    encoding_times = encoding_times.split("\n")[:-1]
+
+    time_encoding = 0.0
+    time_encoding = sum([float(x1) - float(x2) for (x1, x2) in zip(attempting_to_solve_times, encoding_times)])
+
+    return time_encoding
+
+@catchProcessError
+def getTimeSATSolvingAbs(solution_path: str) -> float:
+    attempting_to_solve_times = subprocess.check_output([f"grep 'Attempting to solve' {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
+    attempting_to_solve_times = attempting_to_solve_times.split("\n")[:-1]
+    print(attempting_to_solve_times)
+    solved_unsolved_times = subprocess.check_output([f"grep 'Unsolvable at layer' {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
+    solved_unsolved_times = solved_unsolved_times.split("\n")[:-1]
+    found_a_solution_time = subprocess.check_output([f"grep 'Found a solution at layer' {solution_path} |" + " awk '{print $1}'"], shell=True).decode()
+    solved_unsolved_times.append(found_a_solution_time)
+
+    print(solved_unsolved_times)
+
+    time_sat_solving = 0.0
+    time_sat_solving = sum([float(x1) - float(x2) for (x1, x2) in zip(solved_unsolved_times, attempting_to_solve_times)])
+
+    return time_sat_solving
+
+@catchProcessError
 def getInvalidRigidPreconditionsTotal(solution_path: str) -> int:
     invalid_preconditions = int(subprocess.check_output([f"grep 'total invalid rigid preconditions' {solution_path} |" + " awk '{print $10}'"], shell=True).decode())
     logger.debug(f"invalid_rigid_preconditions: : {invalid_preconditions}")
@@ -215,7 +262,8 @@ figures_all = ['depth', 'num_clauses', 'invalid_rigid_preconditions', 'invalid_r
  'invalid_fluent_preconditions_via_postconditions', 'preprocessing_time', 'num_mined_preconditions', 
  'num_effects_operations', 'ram_needed', 'num_variables_restricted', 'num_invalid_operation_via_subtasks', 'num_invalid_operation_via_postconditions', 'num_nodes_variables_restricted']
 
-figures_finished = ['time_needed', 'plan_length', 'time_instantiating', 'time_encoding', 'time_satsolving']
+figures_finished = ['time_needed', 'plan_length', 'time_instantiating', 'time_encoding', 'time_satsolving', 'time_needed_log', 'time_instantiating_abs', 'time_encoding_abs',
+  'time_satsolving_abs']
 
 get_figure = {'depth': getLastIteration, 'num_clauses': getNumClauses, 'invalid_rigid_preconditions': getInvalidRigidPreconditions, 
   'invalid_fluent_preconditions': getInvalidFluentPreconditions, 'preprocessing_time': getTimePreprocessing, 
@@ -227,7 +275,9 @@ get_figure = {'depth': getLastIteration, 'num_clauses': getNumClauses, 'invalid_
   'invalid_fluent_preconditions_varrestrictions': getInvalidFluentPreconditionsVarrestrictions, 
   'invalid_fluent_preconditions_via_postconditions': getInvalidFluentPreconditionsViaPostconditions,
   'num_variables_restricted': getNumVariablesRestricted, 'num_nodes_variables_restricted': getNumNodesVariablesRestricted,
-  'num_invalid_operation_via_subtasks': getNumInvalidSubtasks, 'num_invalid_operation_via_postconditions': getNumInvalidOperationsPc}
+  'num_invalid_operation_via_subtasks': getNumInvalidSubtasks, 'num_invalid_operation_via_postconditions': getNumInvalidOperationsPc,
+  'time_needed_log': getLilotaneLogTime, 'time_instantiating_abs': getTimeInstantiatingAbs, 'time_encoding_abs': getTimeEncodingAbs,
+  'time_satsolving_abs': getTimeSATSolvingAbs,}
 
 def runAndCollect(binaryPath: str, instancesPath: str, outputPath: str,  validatorPath: str, timeout: int, additional_params: str, runwatch_path: str):
     global get_figure
