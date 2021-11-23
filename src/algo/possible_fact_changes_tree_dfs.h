@@ -48,6 +48,10 @@ public:
         //     Log::e("effects: %s\n", TOSTR(eff.substitute(s)));
         // }
         NodeHashMap<int, SigSet> postconditionCopy = _postconditions;
+        for (const auto& precondition: factFrame.preconditions) {
+            postconditionCopy[precondition._usig._name_id].insert(precondition.substitute(s));
+        }
+
         NodeHashMap<int, FlatHashSet<int>> freeArgRestrictions;
         if (factFrame.subtasks.size() == 0 || _nodes_left < factFrame.numDirectChildren) {
             substituteEffectsAndAdd(factFrame.effects, s, _final_effects_positive, _final_effects_negative, postconditionCopy, freeArgRestrictions);
@@ -164,6 +168,9 @@ public:
                         childPostconditions[postcondition._usig._name_id].insert(postcondition.substitute(newSub));
                     }
                 } else {
+                    for (const auto& prec: ff.fluentPreconditions) {
+                        childPostconditions[prec._usig._name_id].insert(prec.substitute(newSub));
+                    }
                     _nodes_left -= child.numDirectChildren;
                     for (const auto& subtask: child.subtasks) {
                         if (!checkSubtaskDFS(subtask, childEffectsPositive, childEffectsNegative, depth - 1, s, globalFreeArgRestrictions, childPostconditions)) {
