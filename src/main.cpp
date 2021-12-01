@@ -47,14 +47,11 @@ void outputBanner(bool colors) {
     std::cout << Modifier(Code::FG_DEFAULT).str();
 }
 
-
-
 void handleSignal(int signum) {
     SignalManager::signalExit();
 }
 
 void run(Parameters& params) {
-
     HtnInstance htn(params);
     Planner planner(params, htn);
     int result = planner.findPlan();

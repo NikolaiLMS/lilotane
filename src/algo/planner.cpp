@@ -268,7 +268,7 @@ void Planner::createNextLayer() {
     }
     if (_pos > 0) _layers[_layer_idx]->at(_pos-1).clearAfterInstantiation();
 
-    Log::i("Collected %i relevant facts at this layer\n", _analysis.getRelevantFacts().size());
+    Log::i("Collected %i relevant facts at this layer\n", _analysis->getRelevantFacts().size());
 
     // Encode new layer
     Log::i("Encoding ...\n");
@@ -329,14 +329,16 @@ void Planner::createNextPositionFromLeft(Position& left) {
 
     // Propagate fact changes from operations from previous position
     USigSet actionsToRemove;
+    USigSet reductionsToRemove;
     const USigSet* ops[2] = {&left.getActions(), &left.getReductions()};
     bool isAction = true;
     for (const auto& set : ops) {
         for (const auto& aSig : *set) {
 
             bool repeatedAction = isAction && _htn.isActionRepetition(aSig._name_id);
-
-            for (const Signature& fact : _analysis.getPossibleFactChanges(aSig)) {
+            //Log::d("createNextPositionFromLeft: gettingPFC %s@(%i)(%i)\n", TOSTR(aSig), _layer_idx, _pos-1);
+            const SigSet& pfc_new = _analysis->getPossibleFactChangesCache(aSig);
+            for (const Signature& fact : pfc_new) {
                 if (isAction && !addEffect(
                         repeatedAction ? aSig.renamed(_htn.getActionNameFromRepetition(aSig._name_id)) : aSig, 
                         fact, 
@@ -356,7 +358,7 @@ void Planner::createNextPositionFromLeft(Position& left) {
                     // Impossible indirect effect: ignore.
                 }
             }
-            _analysis.eraseCachedPossibleFactChanges(aSig);
+            _analysis->deletePossibleFactChangesFromCache(aSig);
         }
         isAction = false;
     }
@@ -423,12 +425,12 @@ std::optional<SubstitutionConstraint> Planner::addPrecondition(const USignature&
     const USignature& factAbs = fact.getUnsigned();
 
     if (!_htn.hasQConstants(factAbs)) { 
-        assert(_analysis.isReachable(fact) || Log::e("Precondition %s not reachable!\n", TOSTR(fact)));
+        assert(_analysis->isReachable(fact) || Log::e("Precondition %s not reachable!\n", TOSTR(fact)));
                 
-        if (_analysis.isReachable(factAbs, !fact._negated)) {
+        if (_analysis->isReachable(factAbs, !fact._negated)) {
             // Negated prec. is reachable: not statically resolvable
             initializeFact(pos, factAbs);
-            _analysis.addRelevantFact(factAbs);
+            _analysis->addRelevantFact(factAbs);
         }
         return std::optional<SubstitutionConstraint>();
     }
@@ -452,7 +454,7 @@ std::optional<SubstitutionConstraint> Planner::addPrecondition(const USignature&
         size_t valids = 0;
         // Check out a random sample of the possible decoded objects
         for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, eligibleArgs, sampleSize)) {
-            if (_analysis.isReachable(decFactAbs, fact._negated)) valids++;
+            if (_analysis->isReachable(decFactAbs, fact._negated)) valids++;
         }
         polarity = valids < sampleSize/2 ? SubstitutionConstraint::ANY_VALID : SubstitutionConstraint::NO_INVALID;
         c.fixPolarity(polarity);
@@ -462,7 +464,7 @@ std::optional<SubstitutionConstraint> Planner::addPrecondition(const USignature&
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, eligibleArgs)) {
 
         // Can the decoded fact occur as is?
-        if (_analysis.isReachable(decFactAbs, fact._negated)) {
+        if (_analysis->isReachable(decFactAbs, fact._negated)) {
             if (polarity != SubstitutionConstraint::NO_INVALID)
                 c.addValid(SubstitutionConstraint::decodingToPath(factAbs._args, decFactAbs._args, sortedArgIndices));
         } else {
@@ -473,7 +475,7 @@ std::optional<SubstitutionConstraint> Planner::addPrecondition(const USignature&
         }
 
         // If the fact is reachable, is it even invariant?
-        if (_analysis.isInvariant(decFactAbs, fact._negated)) {
+        if (_analysis->isInvariant(decFactAbs, fact._negated)) {
             // Yes! This precondition is trivially satisfied 
             // with above substitution restrictions
             continue;
@@ -489,7 +491,7 @@ std::optional<SubstitutionConstraint> Planner::addPrecondition(const USignature&
             // Decoded fact may be new - initialize as necessary
             initializeFact(pos, decFactAbs);
             if (addQFact) pos.addQFactDecoding(factAbs, decFactAbs, fact._negated);
-            _analysis.addRelevantFact(decFactAbs);
+            _analysis->addRelevantFact(decFactAbs);
         }
     } // else : encoding the precondition is not necessary!
 
@@ -506,9 +508,9 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
 
     if (!isQFact) {
         // Invariant fact? --> no need to encode
-        if (_analysis.isInvariant(fact)) return true;
+        if (_analysis->isInvariant(fact)) return true;
 
-        if (mode != INDIRECT) _analysis.addRelevantFact(factAbs);
+        if (mode != INDIRECT) _analysis->addRelevantFact(factAbs);
 
         // Depending on whether fact supports are encoded for primitive ops only,
         // add the ground fact to the op's support accordingly
@@ -518,8 +520,10 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
             // Remember that there is some (unspecified) support for this fact
             pos.touchFactSupport(fact);
         }
-        
-        _analysis.addReachableFact(fact);
+        // if (strcmp(TOSTR(fact._usig), "(empty l-2-0-0)") == 0) {
+        //     Log::e("operation %s caused effect %s\n", TOSTR(opSig), TOSTR(fact));
+        // }
+        _analysis->addReachableFact(fact);
         return true;
     }
 
@@ -564,13 +568,13 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
         }
 
         anyGood = true;
-        if (_analysis.isInvariant(decFactAbs, fact._negated)) {
+        if (_analysis->isInvariant(decFactAbs, fact._negated)) {
             // Effect holds trivially
             continue;
         }
 
         // Valid effect decoding
-        _analysis.addReachableFact(decFactAbs, /*negated=*/fact._negated);
+        _analysis->addReachableFact(decFactAbs, /*negated=*/fact._negated);
         if (_nonprimitive_support || _htn.isAction(opSig)) {
             pos.addIndirectFactSupport(decFactAbs, fact._negated, opSig, path);
         } else {
@@ -578,7 +582,7 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
         }
         if (mode != INDIRECT) {
             if (mode == DIRECT) pos.addQFactDecoding(factAbs, decFactAbs, fact._negated);
-            _analysis.addRelevantFact(decFactAbs);
+            _analysis->addRelevantFact(decFactAbs);
         }
         staticallyResolvable = false;
     }
@@ -597,16 +601,16 @@ void Planner::propagateInitialState() {
     Position& newPos = (*_layers[_layer_idx])[0];
     Position& above = (*_layers[_layer_idx-1])[0];
 
-    _analysis.resetReachability();
+    _analysis->resetReachability();
 
     // Propagate TRUE facts
     for (const USignature& fact : above.getTrueFacts()) {
         newPos.addTrueFact(fact);
-        _analysis.addInitializedFact(fact);
+        _analysis->addInitializedFact(fact);
     }
     for (const USignature& fact : above.getFalseFacts()) {
         newPos.addFalseFact(fact);
-        _analysis.addInitializedFact(fact);
+        _analysis->addInitializedFact(fact);
     }
 }
 
@@ -621,8 +625,8 @@ void Planner::propagateActions(size_t offset) {
         const Action& a = _htn.getOpTable().getAction(aSig);
 
         // Can the action occur here w.r.t. the current state?
-        bool valid = _analysis.hasValidPreconditions(a.getPreconditions())
-                && _analysis.hasValidPreconditions(a.getExtraPreconditions());
+        bool valid = _analysis->hasValidPreconditions(a.getPreconditions())
+                && _analysis->hasValidPreconditions(a.getExtraPreconditions());
 
         // If not: forbid the action, i.e., its parent action
         if (!valid) {
@@ -747,7 +751,7 @@ std::vector<USignature> Planner::instantiateAllActionsOfTask(const USignature& t
         Action action = _htn.toAction(sig._name_id, sig._args);
 
         // Rename any remaining variables in each action as unique q-constants,
-        action = _htn.replaceVariablesWithQConstants(action, _analysis.getReducedArgumentDomains(action), _layer_idx, _pos);
+        action = _htn.replaceVariablesWithQConstants(action, _analysis->getReducedArgumentDomains(action), _layer_idx, _pos);
 
         // Remove any contradictory ground effects that were just created
         action.removeInconsistentEffects();
@@ -755,8 +759,8 @@ std::vector<USignature> Planner::instantiateAllActionsOfTask(const USignature& t
         // Check validity
         if (!_htn.isFullyGround(action.getSignature())) continue;
         if (!_htn.hasConsistentlyTypedArgs(sig)) continue;
-        if (!_analysis.hasValidPreconditions(action.getPreconditions())) continue;
-        if (!_analysis.hasValidPreconditions(action.getExtraPreconditions())) continue;
+        if (!_analysis->hasValidPreconditions(action.getPreconditions())) continue;
+        if (!_analysis->hasValidPreconditions(action.getExtraPreconditions())) continue;
         
         // Action is valid
         sig = action.getSignature();
@@ -811,7 +815,7 @@ std::optional<Reduction> Planner::createValidReduction(const USignature& sig, co
 
     // Rename any remaining variables in each action as new, unique q-constants 
     Reduction red = _htn.toReduction(sig._name_id, sig._args);
-    auto domains = _analysis.getReducedArgumentDomains(red);
+    auto domains = _analysis->getReducedArgumentDomains(red);
     red = _htn.replaceVariablesWithQConstants(red, domains, _layer_idx, _pos);
 
     // Check validity
@@ -819,8 +823,8 @@ std::optional<Reduction> Planner::createValidReduction(const USignature& sig, co
     if (task._name_id >= 0 && red.getTaskSignature() != task) isValid = false;
     else if (!_htn.isFullyGround(red.getSignature())) isValid = false;
     else if (!_htn.hasConsistentlyTypedArgs(red.getSignature())) isValid = false;
-    else if (!_analysis.hasValidPreconditions(red.getPreconditions())) isValid = false;
-    else if (!_analysis.hasValidPreconditions(red.getExtraPreconditions())) isValid = false;
+    else if (!_analysis->hasValidPreconditions(red.getPreconditions())) isValid = false;
+    else if (!_analysis->hasValidPreconditions(red.getExtraPreconditions())) isValid = false;
 
     if (isValid) {
         _htn.getOpTable().addReduction(red);
@@ -831,28 +835,44 @@ std::optional<Reduction> Planner::createValidReduction(const USignature& sig, co
 
 void Planner::initializeNextEffects() {
     Position& newPos = (*_layers[_layer_idx])[_pos];
-    
+    USigSet opsToPrune;
     // For each possible operation effect:
     const USigSet* ops[2] = {&newPos.getActions(), &newPos.getReductions()};
     bool isAction = true;
+    _analysis->resetPostconditions();
+    _analysis->resetPFCCache();
     for (const auto& set : ops) {
         for (const auto& aSig : *set) {
-            const SigSet& pfc = _analysis.getPossibleFactChanges(aSig, FactAnalysis::FULL, isAction ? FactAnalysis::ACTION : FactAnalysis::REDUCTION);
-            for (const Signature& eff : pfc) {
+            try {
+                //Log::d("initializeNextEffects: gettingPFC %s@(%i)(%i)\n", TOSTR(aSig), _layer_idx, _pos);
+                const SigSet& pfc = _analysis->getPossibleFactChangesCache(aSig);
+                for (const Signature& eff : pfc) {
 
-                if (!_htn.hasQConstants(eff._usig)) {
-                    // New ground fact: set before the action may happen
-                    initializeFact(newPos, eff._usig); 
-                } else {
-                    std::vector<int> sorts = _htn.getOpSortsForCondition(eff._usig, aSig);
-                    for (const USignature& decEff : _htn.decodeObjects(eff._usig, _htn.getEligibleArgs(eff._usig, sorts))) {           
+                    if (!_htn.hasQConstants(eff._usig)) {
                         // New ground fact: set before the action may happen
-                        initializeFact(newPos, decEff);
+                        initializeFact(newPos, eff._usig); 
+                    } else {
+                        std::vector<int> sorts = _htn.getOpSortsForCondition(eff._usig, aSig);
+                        for (const USignature& decEff : _htn.decodeObjects(eff._usig, _htn.getEligibleArgs(eff._usig, sorts))) {           
+                            // New ground fact: set before the action may happen
+                            initializeFact(newPos, decEff);
+                        }
                     }
                 }
+            } catch(const std::invalid_argument& e) {
+                // Log::w("Retroactively prune action %s because it has invalid subtask\n", TOSTR(aSig));
+                opsToPrune.insert(aSig);
+            
+                // Also remove any virtualized actions corresponding to this action
+                USignature repSig = aSig.renamed(_htn.getRepetitionNameOfAction(aSig._name_id));
+                if (newPos.hasAction(repSig)) opsToPrune.insert(repSig);
+                continue;
             }
         }
         isAction = false;
+    }
+    for (const auto& opSig : opsToPrune) {
+        _pruning.prune(opSig, _layer_idx, _pos);
     }
 }
 
@@ -860,11 +880,11 @@ void Planner::initializeFact(Position& newPos, const USignature& fact) {
     assert(!_htn.hasQConstants(fact));
 
     // Has the fact already been defined? -> Not new!
-    if (_analysis.isInitialized(fact)) return;
+    if (_analysis->isInitialized(fact)) return;
 
-    _analysis.addInitializedFact(fact);
+    _analysis->addInitializedFact(fact);
 
-    if (_analysis.isReachable(fact, /*negated=*/true)) newPos.addFalseFact(fact);
+    if (_analysis->isReachable(fact, /*negated=*/true)) newPos.addFalseFact(fact);
     else newPos.addTrueFact(fact);
 }
 
@@ -966,4 +986,19 @@ void Planner::printStatistics() {
     Log::i("# retroactive prunings: %i\n", _pruning.getNumRetroactivePunings());
     Log::i("# retroactively pruned operations: %i\n", _pruning.getNumRetroactivelyPrunedOps());
     Log::i("# dominated operations: %i\n", _domination_resolver.getNumDominatedOps());
+    int total_rigid = _analysis->getInvalidRigidPreconditionsFound() + _analysis->getInvalidRigidPreconditionsFoundByVarRestriction();
+    Log::i("# total invalid rigid preconditions found in getPFC: %i\n", total_rigid);
+    Log::i("# invalid rigid preconditions found in getPFC: %i\n", _analysis->getInvalidRigidPreconditionsFound());
+    Log::i("# invalid rigid preconditions found in getPFC in varrestrictions: %i\n", _analysis->getInvalidRigidPreconditionsFoundByVarRestriction());
+    int total_fluent = _analysis->getInvalidFluentPreconditionsFound() + _analysis->getInvalidFluentPreconditionsFoundByVarRestriction() 
+        + _analysis->getInvalidFluentPreconditionsFoundViaPostconditions();
+    Log::i("# total invalid fluent preconditions found in getPFC: %i\n", total_fluent);
+    Log::i("# invalid fluent preconditions found in getPFC: %i\n", _analysis->getInvalidFluentPreconditionsFound());
+    Log::i("# invalid fluent preconditions found in getPFC in varrestrictions: %i\n", _analysis->getInvalidFluentPreconditionsFoundByVarRestriction());
+    Log::i("# invalid fluent preconditions found in getPFC via postconditions: %i\n", _analysis->getInvalidFluentPreconditionsFoundViaPostconditions());
+    Log::i("# invalid operations found in getPFC via subtasks: %i\n", _analysis->getInvalidSubtasksFound());
+    Log::i("# invalid operations found in getPFC via postconditions: %i\n", _analysis->getInvalidOperationsFoundViaPC());
+    Log::i("# number effects in operation fact_frames: %i\n", _analysis->getNumEffects());
+    Log::i("# number of variables restricted: %i\n", _analysis->getNumVariablesRestricted());
+    Log::i("# number of nodes variables restricted: %i\n", _analysis->getNumNodesVariablesRestricted());
 }

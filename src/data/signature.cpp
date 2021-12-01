@@ -87,3 +87,20 @@ Signature& Signature::operator=(Signature&& sig) {
 }
 
 int USignatureHasher::seed = 1;
+void Sig::intersect(const SigSet& from, SigSet& into) {
+    SigSet toDelete;
+    for (const auto& sig : into) if (!from.count(sig)) toDelete.insert(sig);
+    for (const auto& sig : toDelete) into.erase(sig);
+}
+void Sig::unite(const SigSet& from, SigSet& into) {
+    for (const auto& sig : from) into.insert(sig);
+}
+
+void Sig::intersect(const USigSet& from, USigSet& into) {
+    USigSet toDelete;
+    for (const auto& sig : into) if (!from.count(sig)) toDelete.insert(sig);
+    for (const auto& sig : toDelete) into.erase(sig);
+}
+void Sig::unite(const USigSet& from, USigSet& into) {
+    for (const auto& sig : from) into.insert(sig);
+}

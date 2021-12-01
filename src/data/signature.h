@@ -9,6 +9,7 @@
 #include "util/hashmap.h"
 #include "util/hash.h"
 #include "substitution.h"
+#include <string>
 
 struct TypeConstraint {
     int qconstant;
@@ -133,13 +134,55 @@ struct SigVecHasher {
     }
 };
 
-typedef FlatHashSet<Signature, SignatureHasher> SigSet;
-typedef FlatHashSet<USignature, USignatureHasher> USigSet;
+typedef NodeHashSet<Signature, SignatureHasher> SigSet;
+typedef NodeHashSet<USignature, USignatureHasher> USigSet;
+
+struct SigSetHasher {
+    SignatureHasher _sig_hasher;
+    inline std::size_t operator()(const SigSet& s) const {
+        size_t hash = s.size();
+        for (const Signature& sig : s) hash_combine_commutative(hash, _sig_hasher(sig));
+        return hash;
+    }
+};
+
+struct SigSetEquals {
+    bool operator()(const SigSet& a, const SigSet& b) const {
+        if (a.size() != b.size()) return false;
+        for (const auto& sig : a) {
+            if (!b.count(sig)) {
+                return false;
+            }
+        }
+        return true;
+    }
+};
+
+struct SigSetPairHasher {
+    SigSetHasher _sig_set_hasher;
+    inline std::size_t operator()(const std::pair<SigSet, SigSet>& s) const {
+        size_t hash = _sig_set_hasher(s.first);
+        hash_combine_commutative(hash, _sig_set_hasher(s.second));
+        return hash;
+    }
+};
+
+struct SigSetPairEquals {
+    SigSetEquals _sig_set_equals;
+    bool operator()(const std::pair<SigSet, SigSet>& a, const std::pair<SigSet, SigSet>& b) const {
+        return _sig_set_equals(a.first, b.first) && _sig_set_equals(a.second, b.second);
+    }
+};
 
 namespace Sig {
     const static USignature NONE_SIG = USignature(-1, std::vector<int>());
     const static SigSet EMPTY_SIG_SET;
     const static USigSet EMPTY_USIG_SET;
+
+    void unite(const SigSet& from, SigSet& into);
+    void unite(const USigSet& from, USigSet& into);
+    void intersect(const SigSet& from, SigSet& into);
+    void intersect(const USigSet& from, USigSet& into);
 }
 
 #endif

@@ -13,3 +13,5 @@ picosat
 PANDA.jar
 logs/
 src/pandaPIparser/
+build*/
+plot_dir/

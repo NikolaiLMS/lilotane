@@ -1,85 +1,300 @@
-
 #include "fact_analysis.h"
+#include "util/log.h"
 
-const SigSet& FactAnalysis::getPossibleFactChanges(const USignature& sig, FactInstantiationMode mode, OperationType opType) {
-    
-    if (opType == UNKNOWN) opType = _htn.isAction(sig) ? ACTION : REDUCTION;
-    
-    if (opType == ACTION) return _htn.getOpTable().getAction(sig).getEffects();
-    if (_fact_changes_cache.count(sig)) return _fact_changes_cache[sig];
 
-    int nameId = sig._name_id;
-    
-    // Substitution mapping
-    std::vector<int> placeholderArgs;
-    USignature normSig = _htn.getNormalizedLifted(sig, placeholderArgs);
-    Substitution sFromPlaceholder(placeholderArgs, sig._args);
+void FactAnalysis::computeFactFrames() {}
+SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig) {}
 
-    auto& factChanges = mode == FULL ? _fact_changes : _lifted_fact_changes;
-    if (!factChanges.count(nameId)) {
-        // Compute fact changes for origSig
-        
-        NodeHashSet<Signature, SignatureHasher> facts;
+void FactAnalysis::substituteEffectsAndAdd(const SigSet& effects, Substitution& s, NodeHashMap<int, USigSet>& positiveEffects,
+     NodeHashMap<int, USigSet>& negativeEffects, NodeHashMap<int, SigSet>& postconditions, NodeHashMap<int, FlatHashSet<int>>& globalFreeArgRestrictions) {
+    SigSet subtitutedEffects;
+    for (const auto& effect: effects) {
+        subtitutedEffects.insert(effect.substitute(s));
+    }
+    for (auto& eff: subtitutedEffects) {
+        //Log::e("Adding effect %s\n", TOSTR(eff));
+        if (postconditions.count(eff._usig._name_id)) {
+            SigSet toDelete;
+            for (const auto& postcondition: postconditions[eff._usig._name_id]) {
+                if (postcondition._negated != eff._negated) {
+                    toDelete.insert(postcondition);
+                }
+            }
 
-        if (_htn.isActionRepetition(nameId)) {
-            // Special case: Action repetition
-            Action a = _htn.getActionFromRepetition(nameId);
-            a = a.substitute(Substitution(a.getArguments(), placeholderArgs));
-            for (const Signature& eff : a.getEffects()) {
-                facts.insert(eff);
+            for (const auto& postcondition: toDelete) {
+                postconditions[postcondition._usig._name_id].erase(postcondition);
+            }
+        }
+        for (size_t argPosition = 0; argPosition < eff._usig._args.size(); argPosition++) {
+            if (_htn.isVariable(eff._usig._args[argPosition]) && !globalFreeArgRestrictions.count(eff._usig._args[argPosition])) {
+                eff._usig._args[argPosition] = _name_id_;
+            }
+        }
+        if (eff._negated) {
+            negativeEffects[eff._usig._name_id].insert(eff._usig);
+        } else {
+            positiveEffects[eff._usig._name_id].insert(eff._usig);
+        }
+    }
+}
+
+bool FactAnalysis::restrictNewVariables(SigSet& preconditions, SigSet& fluentPreconditions, Substitution& s, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions, 
+        FlatHashMap<int, FlatHashMap<USignature, FlatHashSet<int>, USignatureHasher>>& rigid_predicate_cache, FlatHashSet<int> nodeArgs,
+        NodeHashMap<int, USigSet>& foundEffectsPositive, NodeHashMap<int, USigSet>& foundEffectsNegative,
+        NodeHashMap<int, SigSet>& postconditions, Substitution& globalSub) {
+    //Log::e("restrict var call\n");
+    bool valid = true;
+    SigSet preconditionsToRemove;
+    //Log::e("Unsubstituted rigid preconditions: %s\n", TOSTR(preconditions));
+    for (auto& substitutedPrecondition: preconditions) {
+        substitutedPrecondition.apply(s);
+        if (substitutedPrecondition._negated) {
+            continue;
+        }
+        //Log::e("Checking rigid precondition %s\n", TOSTR(substitutedPrecondition));
+        for (size_t argPosition = 0; argPosition < substitutedPrecondition._usig._args.size(); argPosition++) 
+                if (nodeArgs.count(substitutedPrecondition._usig._args[argPosition])) {
+            FlatHashSet<int> newRestrictions;
+            int actualArg = substitutedPrecondition._usig._args[argPosition];
+            substitutedPrecondition._usig._args[argPosition] = _name_id_;
+            ArgIterator iter = ArgIterator::getFullInstantiation(substitutedPrecondition._usig, _htn, freeArgRestrictions, true, argPosition);
+            substitutedPrecondition._usig._args[argPosition] = actualArg;
+            if (iter.size() > _new_variable_domain_size_limit) continue;
+            bool reachedLimit = false;
+            for (const USignature& groundFact : iter) {
+                //Log::d("Ground fact: %s\n", TOSTR(groundFact));
+                if (rigid_predicate_cache.count(substitutedPrecondition._usig._name_id) 
+                && rigid_predicate_cache[substitutedPrecondition._usig._name_id].count(groundFact)) {
+                    if (rigid_predicate_cache[substitutedPrecondition._usig._name_id][groundFact].size() > _new_variable_domain_size_limit) {
+                        reachedLimit = true;
+                        break;
+                    } else if (newRestrictions.size() == 0) {
+                        newRestrictions = rigid_predicate_cache[substitutedPrecondition._usig._name_id][groundFact];
+                    } else {
+                        for (const auto& constant: rigid_predicate_cache[substitutedPrecondition._usig._name_id][groundFact]) {
+                            newRestrictions.insert(constant);
+                            if (newRestrictions.size() > _new_variable_domain_size_limit) {
+                                reachedLimit = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (reachedLimit) break;
+                }
+            }
+            if (reachedLimit) break;
+            if (!freeArgRestrictions.count(substitutedPrecondition._usig._args[argPosition])) {
+                freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]] = newRestrictions;
+            } else {
+                FlatHashSet<int> toDelete;
+                for (const auto& constant: freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]]) {
+                    if (!newRestrictions.count(constant)) {
+                        toDelete;
+                    }
+                }
+                for (const auto& constant: toDelete) {
+                    freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].erase(constant);
+                }
+            }
+            if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() > 0) {
+                preconditionsToRemove.insert(substitutedPrecondition);
+            } else {
+                //Log::e("Found no possible constants for precondition %s\n", TOSTR(substitutedPrecondition));
+                _invalid_rigid_preconditions_found_varrestrictions++;
+                freeArgRestrictions.erase(substitutedPrecondition._usig._args[argPosition]);
+                valid = false;
+                break;
+            }
+            if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() == 1) {
+                int singleConstant = *freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].begin();
+                globalSub[substitutedPrecondition._usig._args[argPosition]] = singleConstant;
+                s[substitutedPrecondition._usig._args[argPosition]] = singleConstant;
+            }
+        }
+        if (!valid) {
+            break;
+        }
+    }
+    if (!valid) return valid;
+    //Log::e("Substituted rigid preconditions: %s\n", TOSTR(preconditions));
+    for (const auto& precondition: preconditionsToRemove) preconditions.erase(precondition);
+    //Log::e("Reduced Substituted rigid preconditions: %s\n", TOSTR(preconditions));
+    preconditionsToRemove.clear();
+
+    for (auto& substitutedPrecondition: fluentPreconditions) {
+        substitutedPrecondition.apply(s);
+        if (substitutedPrecondition._negated) continue;
+        //Log::e("Checking fluent precondition %s\n", TOSTR(substitutedPrecondition));
+        for (size_t argPosition = 0; argPosition < substitutedPrecondition._usig._args.size(); argPosition++) 
+                if (nodeArgs.count(substitutedPrecondition._usig._args[argPosition])) {
+            FlatHashSet<int> newRestrictions;
+            ArgIterator iter = ArgIterator::getFullInstantiation(substitutedPrecondition._usig, _htn, freeArgRestrictions, true);
+
+            if (iter.size() > _new_variable_domain_size_limit) continue;
+            for (const USignature& groundFact : iter) {
+                if (countPositiveGround(foundEffectsPositive[groundFact._name_id], groundFact, freeArgRestrictions)) {
+                    newRestrictions.insert(groundFact._args[argPosition]);
+                    if (newRestrictions.size() > _new_variable_domain_size_limit) {
+                        break;
+                    }
+                }
+            }
+            if (newRestrictions.size() > _new_variable_domain_size_limit) continue;
+            if (!freeArgRestrictions.count(substitutedPrecondition._usig._args[argPosition])) {
+                freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]] = newRestrictions;
+            } else {
+                FlatHashSet<int> toDelete;
+                for (const auto& constant: freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]]) {
+                    if (!newRestrictions.count(constant)) {
+                        toDelete;
+                    }
+                }
+                for (const auto& constant: toDelete) {
+                    freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].erase(constant);
+                }
+            }
+            if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() > 0) {
+                preconditionsToRemove.insert(substitutedPrecondition);
+            } else {
+                //Log::e("Found no possible constants for precondition %s\n", TOSTR(substitutedPrecondition));
+                _invalid_fluent_preconditions_found_varrestrictions++;
+                freeArgRestrictions.erase(substitutedPrecondition._usig._args[argPosition]);
+                valid = false;
+                break;
+            }
+            if (freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].size() == 1) {
+                int singleConstant = *freeArgRestrictions[substitutedPrecondition._usig._args[argPosition]].begin();
+                globalSub[substitutedPrecondition._usig._args[argPosition]] = singleConstant;
+                s[substitutedPrecondition._usig._args[argPosition]] = singleConstant;
+            }
+        }
+        if (!valid) {
+            break;
+        }
+    }
+    if (!valid) return valid;
+
+    for (const auto& precondition: preconditionsToRemove) fluentPreconditions.erase(precondition);
+
+    return valid;
+}
+
+bool FactAnalysis::checkPreconditionValidityRigid(const SigSet& preconditions, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
+    bool preconditionsValid = true;
+    // Check if any precondition is rigid and not valid in the initState
+    for (const auto& substitutedPrecondition : preconditions) {
+        //Log::e("checking rigid precondition: %s\n", TOSTR(substitutedPrecondition));
+        if (_htn.isFullyGround(substitutedPrecondition._usig) && !_htn.hasQConstants(substitutedPrecondition._usig)) {
+            //Log::d("Found ground precondition without qconstants: %s\n", TOSTR(substitutedPrecondition));
+            preconditionsValid = !substitutedPrecondition._negated != !_init_state.count(substitutedPrecondition._usig);
+        } else {
+            preconditionsValid = false;
+            for (const USignature& groundFact : ArgIterator::getFullInstantiation(substitutedPrecondition._usig, _htn, freeArgRestrictions, true)) {
+                //Log::d("Ground fact: %s\n", TOSTR(groundFact));
+                if (_init_state.count(groundFact) == !substitutedPrecondition._negated) {
+                    preconditionsValid = true;
+                    break;
+                }
+            }
+        }
+        if (!preconditionsValid) {
+            //Log::e("Found invalid rigid precondition: %s\n", TOSTR(substitutedPrecondition));
+            _invalid_rigid_preconditions_found++;
+            break;
+        }
+    }
+    return preconditionsValid;
+}
+
+bool FactAnalysis::checkPreconditionValidityFluent(SigSet& preconditions, NodeHashMap<int, USigSet>& foundEffectsPositive, 
+    NodeHashMap<int, USigSet>& foundEffectsNegative, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions,
+    NodeHashMap<int, SigSet>& postconditions) {
+    bool preconditionsValid = true;
+    for (auto& substitutedPrecondition : preconditions) {
+        //Log::e("Checking fluent precondition: %s\n", TOSTR(substitutedPrecondition));
+        substitutedPrecondition.negate();
+        if (postconditions[substitutedPrecondition._usig._name_id].count(substitutedPrecondition)){
+            // Log::e("Found invalid fluent precondition in postconditions: %s\n", TOSTR(substitutedPrecondition));
+            _invalid_fluent_preconditions_found_via_postconditions++;
+            preconditionsValid = false;
+            break;
+        }
+        substitutedPrecondition.negate();
+        if (substitutedPrecondition._negated) {
+            if (_htn.isFullyGround(substitutedPrecondition._usig) && !_htn.hasQConstants(substitutedPrecondition._usig)) {
+                preconditionsValid = countNegativeGround(foundEffectsNegative[substitutedPrecondition._usig._name_id], substitutedPrecondition._usig, freeArgRestrictions) || !_init_state.count(substitutedPrecondition._usig);
+            } else {
+                if (foundEffectsNegative[substitutedPrecondition._usig._name_id].count(substitutedPrecondition._usig)) {
+                    preconditionsValid = true;
+                    break;
+                }
+                preconditionsValid = false;
+                for (const USignature& groundFact : ArgIterator::getFullInstantiation(substitutedPrecondition._usig, _htn, freeArgRestrictions, true)) {
+                    if (countNegativeGround(foundEffectsNegative[substitutedPrecondition._usig._name_id], groundFact, freeArgRestrictions) || !_init_state.count(groundFact)) {
+                        preconditionsValid = true;
+                        break;
+                    }
+                }
             }
         } else {
-            // Normal traversal to find possible fact changes
-            _traversal.traverse(normSig.substitute(Substitution(normSig._args, placeholderArgs)), 
-            NetworkTraversal::TRAVERSE_PREORDER,
-            [&](const USignature& nodeSig, int depth) { // NOLINT
-                if (_htn.isAction(nodeSig)) {
-                    
-                    Action a;
-                    if (_htn.isActionRepetition(nameId)) {
-                        // Special case: Action repetition
-                        a = _htn.toAction(_htn.getActionNameFromRepetition(nameId), nodeSig._args);
-                    } else {
-                        a = _htn.toAction(nodeSig._name_id, nodeSig._args);
-                    }
-                    for (const Signature& eff : a.getEffects()) facts.insert(eff);
-                
-                } else if (_htn.isReductionPrimitivizable(nodeSig._name_id)) {
-
-                    const Action& op = _htn.getReductionPrimitivization(nodeSig._name_id);
-                    Action action = op.substitute(Substitution(op.getArguments(), nodeSig._args));
-                    for (const Signature& eff : action.getEffects()) facts.insert(eff);
-                }
-            });
+            preconditionsValid = countPositive(foundEffectsPositive, substitutedPrecondition._usig, freeArgRestrictions);
         }
+        if (!preconditionsValid) {
+            //Log::e("Found invalid fluent precondition: %s\n", TOSTR(substitutedPrecondition));
+            _invalid_fluent_preconditions_found++;
+            break;
+        }
+    }
+    return preconditionsValid;
+}
 
-        // Convert result to vector
-        SigSet& liftedResult = _lifted_fact_changes[nameId];
-        SigSet& result = _fact_changes[nameId];
-        for (const Signature& sig : facts) {
-            liftedResult.insert(sig);
-            if (sig._usig._args.empty()) result.insert(sig);
-            else for (const USignature& sigGround : ArgIterator::getFullInstantiation(sig._usig, _htn)) {
-                result.emplace(sigGround, sig._negated);
+USigSet FactAnalysis::removeDominated(const NodeHashMap<int, USigSet>& originalSignatures) {
+    USigSet reducedSignatures;
+    for (const auto& [argname, effects]: originalSignatures) {
+        USigSet dominatedSignatures;
+        for (const auto& eff: effects) {
+            if (!dominatedSignatures.count(eff)) {
+                for (const auto& innerEff: effects) {
+                    if (!dominatedSignatures.count(innerEff) && eff != innerEff) {
+                        if (_htn.dominates(innerEff, eff)) {
+                            dominatedSignatures.insert(eff);
+                            break;
+                        } else if (_htn.dominates(eff, innerEff)) {
+                            dominatedSignatures.insert(innerEff);
+                        }
+                    }
+                }
+                if (!dominatedSignatures.count(eff)) reducedSignatures.insert(eff);
             }
         }
+        //Log::e("Dominated signatures: %s\n", TOSTR(dominatedSignatures));
     }
-
-    // Get fact changes, substitute arguments
-    _fact_changes_cache[sig] = factChanges.at(nameId);
-    for (Signature& s : _fact_changes_cache[sig]) {
-        s.apply(sFromPlaceholder);
-    }
-    return _fact_changes_cache[sig];
+    return reducedSignatures;
 }
 
-void FactAnalysis::eraseCachedPossibleFactChanges(const USignature& sig) {
-    _fact_changes_cache.erase(sig);
+SigSet FactAnalysis::groundEffects(const NodeHashMap<int, USigSet>& positiveEffects, const NodeHashMap<int, USigSet>& negativeEffects,
+    NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
+    SigSet result = groundEffects(positiveEffects, false, freeArgRestrictions);
+    Sig::unite(groundEffects(negativeEffects, true, freeArgRestrictions), result);
+    return result;
 }
 
+SigSet FactAnalysis::groundEffects(const NodeHashMap<int, USigSet>& effects, bool negated, NodeHashMap<int, FlatHashSet<int>>& freeArgRestrictions) {
+    USigSet effectsToGround = removeDominated(effects);
+    SigSet result;
+
+    for (const auto& effect: effectsToGround) {
+        //Log::e("Grounding effect: %s\n", TOSTR(effect));
+        if (effect._args.empty()) result.emplace(effect, negated);
+        else for (const USignature& groundFact : ArgIterator::getFullInstantiation(effect, _htn, freeArgRestrictions)) {
+            //Log::e("groundFact: %s\n", TOSTR(groundFact));
+            result.emplace(groundFact, negated);
+        }
+    }
+    return result;
+}
 
 std::vector<FlatHashSet<int>> FactAnalysis::getReducedArgumentDomains(const HtnOp& op) {
-
     const std::vector<int>& args = op.getArguments();
     const std::vector<int>& sorts = _htn.getSorts(op.getNameId());
     std::vector<FlatHashSet<int>> domainPerVariable(args.size());
@@ -116,6 +331,10 @@ std::vector<FlatHashSet<int>> FactAnalysis::getReducedArgumentDomains(const HtnO
         // Compute sorts of the condition's args w.r.t. op signature
         std::vector<int> preSorts(preSig._usig._args.size());
         for (size_t i = 0; i < preSorts.size(); i++) {
+            assert(i < opArgIndices.size());
+            assert(opArgIndices[i] < (int)sorts.size());
+            assert(i < preSorts.size());
+            Log::d("%s %s\n", TOSTR(op.getSignature()), TOSTR(preSig));
             preSorts[i] = sorts[opArgIndices[i]];
         }
 
@@ -147,107 +366,3 @@ std::vector<FlatHashSet<int>> FactAnalysis::getReducedArgumentDomains(const HtnO
 
     return domainPerVariable;
 }
-
-FactFrame FactAnalysis::getFactFrame(const USignature& sig, USigSet& currentOps) {
-    static USigSet EMPTY_USIG_SET;
-
-    //Log::d("GET_FACT_FRAME %s\n", TOSTR(sig));
-
-    int nameId = sig._name_id;
-    if (!_fact_frames.count(nameId)) {
-
-        FactFrame result;
-
-        std::vector<int> newArgs(sig._args.size());
-        for (size_t i = 0; i < sig._args.size(); i++) {
-            newArgs[i] = _htn.nameId("c" + std::to_string(i));
-        }
-        USignature op(sig._name_id, std::move(newArgs));
-        result.sig = op;
-
-        if (_htn.isAction(op)) {
-
-            // Action
-            const Action& a = _htn.toAction(op._name_id, op._args);
-            result.preconditions = a.getPreconditions();
-            result.effects = a.getEffects();
-
-        } else if (currentOps.count(op)) {
-
-            // Handle recursive call of same reduction: Conservatively add preconditions and effects
-            // without recursing on subtasks
-            const Reduction& r = _htn.toReduction(op._name_id, op._args);
-            result.preconditions = r.getPreconditions();
-            result.effects = getPossibleFactChanges(r.getSignature(), LIFTED);
-            //Log::d("RECURSIVE_FACT_FRAME %s\n", TOSTR(result.effects));
-
-        } else {
-            currentOps.insert(op);
-            
-            const Reduction& r = _htn.toReduction(op._name_id, op._args);
-            result.preconditions.insert(r.getPreconditions().begin(), r.getPreconditions().end());
-            
-            // For each subtask position ("offset")
-            for (size_t offset = 0; offset < r.getSubtasks().size(); offset++) {
-                
-                FactFrame frameOfOffset;
-                std::vector<USignature> children;
-                _traversal.getPossibleChildren(r.getSubtasks(), offset, children);
-                bool firstChild = true;
-
-                // Assemble fact frame of this offset by iterating over all possible children at the offset
-                for (const auto& child : children) {
-
-                    // Assemble unified argument names
-                    std::vector<int> newChildArgs(child._args);
-                    for (size_t i = 0; i < child._args.size(); i++) {
-                        if (_htn.isVariable(child._args[i])) newChildArgs[i] = _htn.nameId("??_");
-                    }
-
-                    // Recursively get child frame of the child
-                    FactFrame childFrame = getFactFrame(USignature(child._name_id, std::move(newChildArgs)), currentOps);
-                    
-                    if (firstChild) {
-                        // Add all preconditions of child that are not yet part of the parent's effects
-                        for (const auto& pre : childFrame.preconditions) {
-                            bool isNew = true;
-                            for (const auto& eff : result.effects) {
-                                if (_htn.isUnifiable(eff, pre) || _htn.isUnifiable(pre, eff)) {
-                                    isNew = false;
-                                    //Log::d("FACT_FRAME Precondition %s absorbed by effect %s of %s\n", TOSTR(pre), TOSTR(eff), TOSTR(child));
-                                    break;
-                                } 
-                            }
-                            if (isNew) frameOfOffset.preconditions.insert(pre);
-                        }
-                        firstChild = false;
-                    } else {
-                        // Intersect preconditions
-                        SigSet newPrec;
-                        for (auto& pre : childFrame.preconditions) {
-                            if (frameOfOffset.preconditions.count(pre)) newPrec.insert(pre);
-                        }
-                        frameOfOffset.preconditions = std::move(newPrec);
-                    }
-
-                    // Add all of the child's effects to the parent's effects
-                    frameOfOffset.effects.insert(childFrame.effects.begin(), childFrame.effects.end());
-                }
-
-                // Write into parent's fact frame
-                result.preconditions.insert(frameOfOffset.preconditions.begin(), frameOfOffset.preconditions.end());
-                result.effects.insert(frameOfOffset.effects.begin(), frameOfOffset.effects.end());
-            }
-
-        }
-
-        currentOps.erase(sig);
-        _fact_frames[nameId] = std::move(result);
-
-        //Log::d("FACT_FRAME %s\n", TOSTR(_fact_frames[nameId]));
-    }
-
-    const FactFrame& f = _fact_frames[nameId];
-    return f.substitute(Substitution(f.sig._args, sig._args));
-}
-

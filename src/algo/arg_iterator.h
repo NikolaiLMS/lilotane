@@ -84,7 +84,18 @@ public:
         return _end;
     }
 
-    static ArgIterator getFullInstantiation(const USignature& sig, HtnInstance& _htn);
+    int size() {
+        int size = 1;
+        for (const auto& args: _eligible_args) {
+            size *= args.size();
+        }
+        return size;
+    }
+
+    static ArgIterator getFullInstantiation(const USignature& sig, HtnInstance& _htn, 
+        const NodeHashMap<int, FlatHashSet<int>>& restrictedArgs = NodeHashMap<int, FlatHashSet<int>>(),
+         bool groundQConstants = false, int exemptPosition = -1);
+    
 };
 
 #endif

@@ -72,6 +72,13 @@ void Parameters::setDefaults() {
     setParam("aar", "1"); // acknowledge action repetitions
     setParam("vp", "0"); // verify plan before printing it
     setParam("wf", "0"); // output formula to f.cnf
+    setParam("pfc", "treedfs"); // pfc type, base, tree, condeffs
+    setParam("pfcNumNodes", "128"); // numNodes param for tree preprocessing
+    setParam("pfcFluentPreconditions", "1"); // check fluent preconditions
+    setParam("pfcPostconditions", "1"); // check reliable effects and subsequently prune effects in fact_frame preprocessing
+    setParam("pfcRestrictLimit", "512"); //
+    setParam("pfcInitNodeLimit", "8");
+    setParam("pfcInvalidNodeIncrease", "4");
 }
 
 void Parameters::printUsage() {
@@ -119,6 +126,13 @@ void Parameters::printUsage() {
     Log::i(" -v=<verb>           Verbosity: 0=essential 1=warnings 2=information 3=verbose 4=debug\n");
     Log::i(" -vp=<0|1>           Verify plan (using pandaPIparser) before printing it\n");
     Log::i(" -wf=<0|1>           Write generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
+    Log::i(" -pfc=<base|condeffs|tree>\n");
+    Log::i(" -pfcNumNodes=<+int>\n");
+    Log::i(" -pfcFluentPreconditions=<0|1>\n");
+    Log::i(" -pfcPostconditions=<0|1>\n");
+    Log::i(" -pfcRestrictLimit=<+int>\n");
+    Log::i(" -pfcInitNodeLimit=<+int>\n");
+    Log::i(" -pfcInvalidNodeIncrease=<+int>\n");
     Log::i("\n");
     printParams();
     Log::setForcePrint(false);
